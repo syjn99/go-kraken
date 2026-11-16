@@ -26,6 +26,7 @@ run:
     work.
 Exit 0 PASS; 1 FAIL (non-standard axiom, sorryAx, a missing hand-list name, or an empty dump); 2 precheck, dump,
 lakefile or hand-list discovery failed. Python 3 stdlib only."""
+import collections
 import json
 import os
 import pathlib
@@ -115,6 +116,7 @@ def hand_names(d=None):
 def check(rows, header, must):
     """rows: list of (name, kind, axioms list). Returns the result dict."""
     by = {n: (k, a) for n, k, a in rows}
+    duplicate = sorted(n for n, c in collections.Counter(n for n, _, _ in rows).items() if c > 1)
     nonstd = {n: a for n, (k, a) in by.items() if not set(a) <= ALLOWED}
     sorry = sorted(n for n, (k, a) in by.items() if "sorryAx" in a)
     missing = [n for n in must if n not in by]
@@ -125,10 +127,11 @@ def check(rows, header, must):
     for n, (k, a) in by.items():
         key = ",".join(a) or "-"
         axsets[key] = axsets.get(key, 0) + 1
-    ok = bool(rows) and not nonstd and not sorry and not missing
+    ok = bool(rows) and header is not None and not duplicate and not nonstd and not sorry and not missing
     return {"header": header, "allowed": sorted(ALLOWED), "declarations": len(by), "kinds": kinds,
             "axiom_sets": axsets, "theorems": sum(1 for _, (k, _) in by.items() if k == "theorem"),
-            "hand_list_names": len(must), "hand_list_missing": missing, "nonstandard": nonstd, "sorryAx": sorry,
+            "hand_list_names": len(must), "hand_list_missing": missing, "duplicate": duplicate,
+            "nonstandard": nonstd, "sorryAx": sorry,
             "verdict": "PASS" if ok else "FAIL"}
 
 
@@ -205,6 +208,8 @@ def selftest():
         ("missing", ok_rows, ["Lib.a", "Lib.zz"], "FAIL"),
         ("prime_missing", ok_rows, ["Lib.a'"], "FAIL"),
         ("empty", H, [], "FAIL"),
+        ("duplicate_hides_sorry", ok_rows + "\nLib.a\ttheorem\t0\t-\tsorryAx", ["Lib.a"], "FAIL"),
+        ("no_header", ok_rows.split("\n", 1)[1], ["Lib.a"], "FAIL"),
     ]
     for name, tsv, must, want in cases:
         h, rows = parse(tsv)

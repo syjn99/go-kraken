@@ -34,6 +34,17 @@ EOF
 eval "$settings"
 
 python3 -I -B "$here/cases.py" > "$work/cases.txt"
+cases=$(wc -l < "$work/cases.txt" | tr -d ' ')
+if [ "$cases" -eq 0 ]; then
+  echo "the case list is empty" >&2
+  exit 1
+fi
+
+# `lake env lean` does not check that the build is current. The compiled specification must be current.
+(cd "$lean_dir" && lake build --no-build Uvarint.Spec) > /dev/null || {
+  echo "Uvarint.Spec is not built or not current: run lake build Uvarint first" >&2
+  exit 1
+}
 
 # One container per step: no network, a 4 GiB memory limit.
 # GOOS and GOARCH are not set: the program runs on the architecture of the container.
@@ -49,12 +60,11 @@ go_run /work/go-differential < "$work/cases.txt" > "$work/go.txt"
 
 (cd "$lean_dir" && lake env lean --run "$here/Differential.lean" "$work/cases.txt") > "$work/lean.txt"
 
-cases=$(wc -l < "$work/cases.txt" | tr -d ' ')
 echo "go: $(cat "$work/go-version.txt")"
 echo "cases: $cases"
 echo "go lines: $(wc -l < "$work/go.txt" | tr -d ' ')"
 echo "lean lines: $(wc -l < "$work/lean.txt" | tr -d ' ')"
-# Each output must have one line per case. Two empty outputs are equal but check nothing.
+# Each output must have one line per case.
 if [ "$(wc -l < "$work/go.txt" | tr -d ' ')" != "$cases" ]; then
   echo "the Go output does not have one line per case" >&2
   exit 1

@@ -9,7 +9,7 @@ Each lemma changes one condition code of these flags into a comparison of the op
 The operands are free, so the lemmas hold at every width.
 -/
 
-namespace Machine
+namespace Machine.Amd64
 
 /-- The carry flag of `cmp` is the unsigned borrow. -/
 theorem sub_borrow {w : Nat} (a b : BitVec w) :
@@ -100,4 +100,4 @@ theorem sbb_self_after_borrow (x a b : BitVec 64) (af of' : Bool) (h : a.toNat <
     BitVec.zero_sub]
   exact BitVec.neg_one_eq_allOnes
 
-end Machine
+end Machine.Amd64

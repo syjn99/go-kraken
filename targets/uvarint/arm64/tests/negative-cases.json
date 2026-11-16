@@ -6,7 +6,7 @@
     "theorem": "Uvarint.Arm64.returns",
     "code_definition": "uvarint",
     "code_namespace": "Uvarint.Arm64.Code",
-    "assembly": "targets/uvarint/build-arm64/norm/encoding_binary.Uvarint.S"
+    "assembly": "targets/uvarint/arm64/build/norm/encoding_binary.Uvarint.S"
   },
   {
     "id": "arm64-return-code-x30-to-x29",
@@ -15,7 +15,7 @@
     "theorem": "Uvarint.Arm64.returns",
     "code_definition": "uvarint",
     "code_namespace": "Uvarint.Arm64.Code",
-    "assembly": "targets/uvarint/build-arm64/norm/encoding_binary.Uvarint.S",
+    "assembly": "targets/uvarint/arm64/build/norm/encoding_binary.Uvarint.S",
     "line": 46,
     "old": "  ret",
     "new": "  ret x29"

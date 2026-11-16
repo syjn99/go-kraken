@@ -25,9 +25,9 @@ rcx holds the index `i`, rdx holds the shift `7 * i`, and rsi holds the sum `sum
 The specification of the remaining bytes is `decodeFrom i sum (buf.drop i)`.
 -/
 
-open Machine Uvarint.Code
+open Machine.Amd64 Uvarint.Amd64.Code
 
-namespace Uvarint
+namespace Uvarint.Amd64
 
 /-- An eleventh byte is an overflow. -/
 theorem decodeFrom_eleventh (sum : Nat) (b : UInt8) (rest : List UInt8) :
@@ -129,7 +129,7 @@ theorem Decode.iteration (k : Nat) (hk : uvarint.IsInfixAt Host.prog k) (hf : La
       step_directive hk uvarint 26
       step_directive hk uvarint 27
       have h128 : (BitVec.truncate 8 (128 : BitVec 64)).toNat = 128 := by decide
-      rw [flag_nc, Machine.zx8, h128, UInt8.toNat_toBitVec]
+      rw [flag_nc, Machine.Amd64.zx8, h128, UInt8.toNat_toBitVec]
       have hbyte := buf[i].toNat_lt
       split
       · rename_i hb
@@ -171,7 +171,7 @@ theorem Decode.iteration (k : Nat) (hk : uvarint.IsInfixAt Host.prog k) (hf : La
           step_directive hk uvarint 30
           step_directive hk uvarint 31
           have h1 : (BitVec.truncate 8 (1 : BitVec 64)).toNat = 1 := by decide
-          rw [flag_be, Machine.zx8, h1, UInt8.toNat_toBitVec]
+          rw [flag_be, Machine.Amd64.zx8, h1, UInt8.toNat_toBitVec]
           split
           · rename_i hle1
             simp only [decide_eq_true_eq] at hle1
@@ -213,4 +213,4 @@ theorem Decode.loop (k : Nat) (hk : uvarint.IsInfixAt Host.prog k) (hf : LabelsF
       (fun _ hlt sum' rcx' rdx' rsi' rdi' r8' r9' r10' flags' hs hd h1 h2 h3 =>
         ih (i + 1) sum' rcx' rdx' rsi' rdi' r8' r9' r10' flags' (by omega) (by omega) (by omega) hs hd h1 h2 h3)
 
-end Uvarint
+end Uvarint.Amd64

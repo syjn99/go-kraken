@@ -4,13 +4,13 @@
 Usage: link_check.py <build directory>
        link_check.py --selftest <build directory>
 
-The build directory is targets/<name>/build or build-arm64, after tools/build_target.sh.
-It holds target-<arch> (the ELF), target.objdump, target-<arch>.nm, build-ids.txt, norm/*.S and data/*.data.
+The build directory is targets/<name>/<arch>/build, after tools/build_target.sh.
+It holds target (the ELF), target.objdump, target.nm, build-ids.txt, norm/*.S and data/*.data.
 A target without data items has no data files.
 The check writes <build directory>/RESULT. The exit status is 1 on a failure.
 
 These are the checks:
-- Pins: the ELF, target.objdump and target-<arch>.nm have the sha256 values of build-ids.txt.
+- Pins: the ELF, target.objdump and target.nm have the sha256 values of build-ids.txt.
 - Code: for each function, the ELF symbol table gives the address and the size.
   The objdump instructions cover the range [addr, addr+size) without gaps.
   The objdump bytes are the ELF file bytes.
@@ -165,9 +165,7 @@ def architecture(outdir):
     return m[1]
 
 
-def pins(outdir):
-    arch = architecture(outdir)
-    return {"elf sha256": f"target-{arch}", "objdump sha256": "target.objdump", "nm sha256": f"target-{arch}.nm"}
+PINS = {"elf sha256": "target", "objdump sha256": "target.objdump", "nm sha256": "target.nm"}
 
 
 def check_pins(outdir):
@@ -176,21 +174,21 @@ def check_pins(outdir):
     for line in (outdir / "build-ids.txt").read_text().splitlines():
         k, _, v = line.partition(": ")
         ids[k] = v
-    for k, f in pins(outdir).items():
+    for k, f in PINS.items():
         need(ids.get(k) == sha(outdir / f), f"{f}: sha256 {sha(outdir / f)} is not the pin {k} {ids.get(k)}")
 
 
 def run(outdir, log):
     outdir = pathlib.Path(outdir)
     arch = architecture(outdir)
-    elf = outdir / f"target-{arch}"
+    elf = outdir / "target"
     check_pins(outdir)
     log("PASS pins: the ELF, the disassembly and the symbol listing have the sha256 values of build-ids.txt")
     b, secs, esyms = read_elf(elf)
     need(struct.unpack_from("<H", b, 18)[0] == (183 if arch == "arm64" else 62), "the ELF machine differs from GOARCH")
     conv.CLEANED.clear()
     fns = conv.read_objdump(outdir / "target.objdump", arch)
-    nm = conv.read_nm(outdir / f"target-{arch}.nm")
+    nm = conv.read_nm(outdir / "target.nm")
     # Go nm adds group symbols of size 0 (`type:*`, `go:string.*`) that the ELF symbol table does not have.
     # The check takes them from nm, with the section of their address.
     nmonly = set()
@@ -437,7 +435,7 @@ def main(outdir):
         log(f"FAIL {e}")
         (outdir / "RESULT").write_text("\n".join(lines) + "\n")
         return 1
-    log(f"elf sha256 {sha(outdir / pins(outdir)['elf sha256'])}")
+    log(f"elf sha256 {sha(outdir / PINS['elf sha256'])}")
     for p in sorted((outdir / "norm").glob("*.S")):
         log(f"S sha256 {sha(p)} {p.name}")
     for p in sorted((outdir / "data").glob("*.data")):
@@ -454,7 +452,7 @@ def repin(t):
     """Write the sha256 values of the changed files of a copy into its build-ids.txt, so that a later check fails."""
     p = t / "build-ids.txt"
     s = p.read_text()
-    for k, f in pins(t).items():
+    for k, f in PINS.items():
         s = re.sub(rf"^{k}: .*$", f"{k}: {sha(t / f)}", s, flags=re.M)
     p.write_text(s)
 
@@ -564,10 +562,10 @@ def selftest(outdir):
         # Add 8 to the ELF word at the first `word` line of a data file.
         f = first(lambda q: re.search(r"^word ", q.read_text(), re.M), datas)
         if f:
-            t = copy(); p = t / f"target-{arch}"
+            t = copy(); p = t / "target"
             e = bytearray(p.read_bytes()); _, es, sy = read_elf(p)
             addrs = {conv.short(n): v[0] for n, v in sy.items()}
-            for a, _, n in conv.read_nm(t / f"target-{arch}.nm"):
+            for a, _, n in conv.read_nm(t / "target.nm"):
                 addrs.setdefault(conv.short(n), a)
             at, pos = None, 0
             for w in (l.split() for l in f.read_text().split("\n")):

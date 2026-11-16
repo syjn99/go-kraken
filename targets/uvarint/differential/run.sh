@@ -1,19 +1,17 @@
 #!/bin/sh
 # Differential run of the uvarint target: Go binary.Uvarint against the Lean Uvarint.decode.
-# Usage: sh targets/uvarint/differential/run.sh <work directory> [amd64|arm64]
+# Usage: sh targets/uvarint/differential/run.sh <work directory> <amd64|arm64>
 # The script writes all its files into the work directory. It writes no file into the tree.
-# The Go program runs on the architecture of the container. It checks the Go semantics, not either target ELF.
+# The Go program uses the requested target architecture. It checks Go semantics, not either target ELF.
 # The exit status is 0 only when the two outputs are equal.
 set -eu
 
-if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
-  echo "usage: sh run.sh <work directory> [amd64|arm64]" >&2
+if [ "$#" -ne 2 ]; then
+  echo "usage: sh run.sh <work directory> <amd64|arm64>" >&2
   exit 2
 fi
-arch_env=""
-case "${2:-}" in
+case "$2" in
   amd64|arm64) arch_env="-e GOOS=linux -e GOARCH=$2" ;;
-  "") ;;
   *) echo "unsupported architecture: $2" >&2; exit 2 ;;
 esac
 here=$(cd "$(dirname "$0")" && pwd)
@@ -22,13 +20,15 @@ work=$(cd "$1" && pwd)
 lean_dir="$here/../../../lean"
 
 # The image, the flags and the tags of the manifest.
-settings=$(python3 -I -B - "$here/../manifest.json" <<'EOF'
+settings=$(python3 -I -B - "$here/../$2/manifest.json" "$2" <<'EOF'
 import json
 import re
 import shlex
 import sys
 
 go = json.load(open(sys.argv[1]))["go"]
+if go["env"].get("GOARCH") != sys.argv[2] or go["env"].get("GOOS") != "linux":
+    sys.exit("the manifest target does not match the requested architecture")
 word = re.compile(r"[A-Za-z0-9_.,=/+-]+")
 if not all(isinstance(x, str) and word.fullmatch(x) for x in go["flags"] + go["tags"]):
     sys.exit("manifest: a flag or a tag is not one plain word")
@@ -54,7 +54,7 @@ fi
 }
 
 # One container for each step: no network and a memory limit of 4 GiB.
-# The optional architecture selects the compiled Go binary. The pinned compiler image stays unchanged.
+# The architecture selects the compiled Go binary. The pinned compiler image stays unchanged.
 go_run() {
   docker run $arch_env --rm -i --network none --memory 4g --user "$(id -u):$(id -g)" \
     -e CGO_ENABLED=0 -e GOTOOLCHAIN=local -e GOFLAGS= -e HOME=/tmp -e GOCACHE=/tmp/go-cache \
@@ -68,7 +68,7 @@ case "$(cat "$work/go-version.txt")" in
   *) echo "unexpected Go version or architecture" >&2; exit 1 ;;
 esac
 go_run go version -m /work/go-differential > "$work/go-build-info.txt"
-python3 -I -B - "$work/go-build-info.txt" "${2:-}" "$GO_VERSION" <<'EOF'
+python3 -I -B - "$work/go-build-info.txt" "$2" "$GO_VERSION" <<'EOF'
 import re
 import sys
 

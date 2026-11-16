@@ -14,14 +14,16 @@
       "GOAMD64": "v1",
       "CGO_ENABLED": "0"
     },
-    "flags": ["-trimpath"],
+    "flags": [
+      "-trimpath"
+    ],
     "tags": []
   },
-  "main_package": "main",
+  "main_package": "../main",
   "functions": [
     {
       "symbol": "encoding/binary.Uvarint",
-      "lean_constant": "Uvarint.Code.uvarint"
+      "lean_constant": "Uvarint.Amd64.Code.uvarint"
     }
   ],
   "runtime_callees": [],

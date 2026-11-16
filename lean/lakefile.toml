@@ -15,22 +15,22 @@ rev = "6064eecbb730a1152aa6ed891a155d3a92a4f298"
 name = "Machine"
 globs = ["Machine.+"]
 
-# The converted assembly of the pilot target. `include_x64_code` reads these files.
+# Converted assembly inputs use the same directory structure for both architectures.
 # The `needs` entry puts their contents into the input hash. Thus Lake builds the proofs again after a change of a file.
 [[input_dir]]
-name = "uvarint_norm_S"
-path = "../targets/uvarint/build/norm"
+name = "uvarint_amd64_norm_S"
+path = "../targets/uvarint/amd64/build/norm"
 text = true
 filter = {extension = ["S"]}
 
-# Uvarint: the pilot target `encoding/binary.Uvarint` (Go 1.26.10, linux/amd64).
+# Uvarint shares the specification and keeps each architecture proof in its own directory.
 [[lean_lib]]
 name = "Uvarint"
 globs = ["Uvarint.+"]
-needs = ["uvarint_norm_S", "uvarint_arm64_norm_S"]
+needs = ["uvarint_amd64_norm_S", "uvarint_arm64_norm_S"]
 
 [[input_dir]]
 name = "uvarint_arm64_norm_S"
-path = "../targets/uvarint/build-arm64/norm"
+path = "../targets/uvarint/arm64/build/norm"
 text = true
 filter = {extension = ["S"]}

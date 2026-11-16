@@ -2,7 +2,7 @@ import Machine.Amd64.Step
 
 /-! Byte facts for stored values. -/
 
-namespace Machine
+namespace Machine.Amd64
 open Std
 
 /-- Bytes that a load reads at the width `w = 8n` stay the same when a store writes them back at that width. -/
@@ -24,4 +24,4 @@ theorem sep_true {P F : DataMem → Prop} {m : DataMem} (h : (P ⋆ F) m) : (P �
   exact ⟨m1, m2, h1, h2, hp, trivial⟩
 
 
-end Machine
+end Machine.Amd64

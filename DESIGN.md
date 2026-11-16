@@ -23,8 +23,10 @@ The project has no generic backend interface.
 Kraken declares architecture types at the root, so a Lean module must not import both instruction models.
 The axioms gate imports each repository module in a separate process and combines their declaration records.
 
-AMD64 retains its manifest, artifact directory, program constant, and theorem names.
-ARM64 uses `manifest-arm64.json`, `build-arm64/`, and separate program and statement names.
+Both architectures use `targets/<name>/<arch>/manifest.json`, `build/`, and `tests/`.
+Both build directories use `target` and `target.nm`.
+Machine definitions use `Machine.<Arch>`, and target definitions use `Uvarint.<Arch>`.
+Architecture-specific axiom lists use the suffix `-amd64` or `-arm64`.
 Lake tracks both assembly directories as inputs.
 The ARM64 converter handles four-byte instruction words and signed PC-relative branch offsets.
 The ARM64 link check requires exact reassembly bytes. It permits no alternate encoding or padding exception.
@@ -104,7 +106,8 @@ The converter selects AMD64 or ARM64 from the manifest architecture.
 It changes the disassembly of each function into one labeled assembly file.
 A jump target becomes a label.
 An address relative to `rip` becomes a symbol with an offset.
-The Lean term `include_x64_code "<file>"` parses the file with the Kraken parser and gives a `Program` constant.
+The terms `include_amd64_code "<file>"` and `include_arm64_code "<file>"` select the corresponding Kraken parser.
+Each term gives a `Program` constant.
 No person writes an instruction, a byte or an address by hand.
 
 A data item of the ELF is, for example, a constant table or a string.
@@ -278,7 +281,9 @@ It is not evidence for a theorem.
 ### Manifest
 
 One manifest holds the build inputs for each target architecture.
-The AMD64 manifest uses `targets/<name>/manifest.json`. The ARM64 manifest uses `manifest-arm64.json` beside it.
+Each architecture manifest uses `targets/<name>/<arch>/manifest.json`.
+Its directory name must match GOARCH, and its parent directory must match the target name.
+The main package path is relative to that architecture directory.
 
 | Field | Content |
 | --- | --- |
@@ -304,7 +309,7 @@ The names follow the role names of the reference (`fv/kraken/lean/README.md`), w
 | Module | Obligation |
 | --- | --- |
 | `Spec` | The specification, or an import of it. The header names its source and commit |
-| `Code` | One program constant for each function of the manifest, made with `include_x64_code` |
+| `Code` | One program constant for each function of the manifest, made with the architecture include command |
 | `Data` | One definition for each data item of the manifest. Not necessary when the list is empty |
 | `Statements` | The main statements, and the mapping from specification values to registers and memory |
 | Proof modules | One theorem for each statement |
@@ -324,19 +329,20 @@ Never write "complete" for a function that has a path in its list of paths not p
 
 ```text
 <repository root>
-  DESIGN.md              this document
-  README.md              the commands that work
-  FINDINGS.md            findings, stops and paths not proved
-  tools/                 build, conversion, link check, axioms gate, negative test runner
-  lean/                  one Lake project
-    Machine/             machine lemmas, include command, witness host (generic)
-    Uvarint/             the pilot target
-  targets/
-    uvarint/
-      manifest.json
-      main/              the main package of the build
-      build/             build identifiers, disassembly, symbol listing, converted code, link result
-      differential/      the differential run
+  README.md, DESIGN.md, FINDINGS.md
+  tools/
+    axioms-lists/uvarint-amd64.lean
+    axioms-lists/uvarint-arm64.lean
+  lean/
+    Machine/Amd64/, Machine/Arm64/
+    Uvarint/Amd64/, Uvarint/Arm64/
+    Uvarint/Spec.lean, Uvarint/SpecKnownAnswers.lean
+  targets/uvarint/
+    main/, differential/
+    amd64/
+      README.md, manifest.json, build/, tests/
+    arm64/
+      README.md, manifest.json, build/, tests/
 ```
 
 One Lake project holds the generic library and each target library.
@@ -351,7 +357,7 @@ The table gives each generic part and its source in the reference.
 | Build script | `fv/kraken/link/build.sh`, `fv/kraken/gen/prysm-elf.sh` (as a model) | Extracted as `tools/build_target.sh` |
 | Converter | `fv/kraken/link/convert_objdump.py` | Extracted |
 | Link check | `fv/kraken/link/check.py` | Extracted as `tools/link_check.py` |
-| Data extractor and data include command | `fv/kraken/link/data.py`, `fv/kraken/gen/checks/link_set.py`, `fv/kraken/lean/Machine/Amd64/Include.lean` | Listed. Their item tables are specific to SSZ |
+| Data extractor and data include command | `fv/kraken/link/data.py`, `fv/kraken/gen/checks/link_set.py`, `fv/kraken/lean/Machine/Include.lean` | Listed. Their item tables are specific to SSZ |
 | Machine lemmas, include command, witness host | `fv/kraken/lean/Machine/` | Extracted |
 | Runtime contracts and models | `fv/kraken/lean/Runtime/` | Listed. The pilot has no runtime call |
 | Stack guard branch lemmas and frame lemmas | `fv/kraken/lean/Machine/Flags.lean`, `fv/kraken/lean/Machine/Frame.lean`, `fv/kraken/lean/Codec/` (`lea_cmp_be_false`) | Listed. The pilot has no stack guard and no frame |

@@ -460,7 +460,11 @@ def build_mutant(c, sdir):
         if not n:
             raise ValueError(f"{c['id']}: code_definition {name} is not used after the imports")
         ns = code_namespace_of(c)
-        reader = "include_arm64_code" if "/Arm64/" in c["module"] else "include_x64_code"
+        arch = pathlib.PurePosixPath(c["module"]).parts[1]
+        readers = {"Amd64": "include_amd64_code", "Arm64": "include_arm64_code"}
+        if arch not in readers:
+            raise ValueError(f"{c['id']}: the module has no supported architecture")
+        reader = readers[arch]
         visibility = "public " if "module" in tl[:k] else ""
         decl = f'{visibility}def {ns}.{name}Mut : Program := {reader} "{sdir / "mut.S"}"'
         text = "\n".join(tl[:k] + ["", decl] + [rest])

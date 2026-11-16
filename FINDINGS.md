@@ -8,7 +8,7 @@ The Git history records the fixed defects.
 
 ### Inputs that the theorem does not cover
 
-`Uvarint.Decode.result` covers each path of the compiled function from the entry to each of its four returns.
+`Uvarint.Amd64.Decode.result` covers each path of the compiled function from the entry to each of its four returns.
 The function has no stack growth path, no write barrier path and no call.
 These items stay outside the theorem:
 
@@ -85,7 +85,7 @@ The differential tests compare Go with the specification. They do not execute ei
 
 ### Unfinished proof obligations
 
-`Uvarint.Arm64.result_statement` remains unchanged in strength and has no result theorem.
+`Uvarint.Arm64.Decode.result_statement` remains unchanged in strength and has no result theorem.
 Commit `f707438` records that statement before ARM64 proof work.
 Commit `c82e5ea` records the concrete execution definitions before their proofs.
 Commit `02a0bd3` records the four-return statement before its proof.
@@ -98,7 +98,7 @@ The proof must connect signed CMP/B.LE, byte loads, LSL/CSEL, and both overflow 
 A host-placement theorem remains unfinished. The current statement fixes the standalone ELF address.
 The Kraken state does not model vector registers, so this statement does not prove their preservation.
 
-`attempts/KernelWitness.lean` also leaves empty, normal, and overflow execution proofs unfinished.
+Closed kernel calculations also failed for empty, normal, and overflow executions.
 The exact error is `Tactic decide failed to reduce`, followed by `Reduction got stuck at` the bounded interpreter call.
 A smaller probe also fails to reduce `Mem.loadInt (Witness.initial []).dmem 65544 8 = some 0`.
 The recursive executable traversal uses well-founded recursion. The proof must rewrite its equation lemmas instead of evaluating its definition.
@@ -106,7 +106,8 @@ The return proof succeeds with `withAddresses.eq_1`, `withAddresses.eq_2`, and t
 The concrete execution proof also needs separation-memory rewrites for the initial store and indexed loads.
 These repository proofs remain unfinished. Kraken supplies the required instruction semantics.
 
-The failed proof files stay outside the Lake libraries. No admitted theorem enters the build.
+Commit `d54bd4d` retains the failed proof sources. The current checkout removes those sources.
+Their errors and required lemmas remain documented here. No admitted theorem enters the build.
 ARM64 theorem mutants currently cover RET behavior. Full-result mutants remain unavailable until that result theorem exists.
 Timeouts, memory failures, and unfinished proofs are not passes.
 
@@ -216,7 +217,7 @@ State: open. Neither warning changes a proof.
 - The stack guard branch and the write barrier branch.
 - Proof generation.
 
-## Validation commands for this attempt
+## Validation commands for the current directory layout
 
 Run these commands from the repository root.
 The commands with parentheses select `lean/` before they start Lake.
@@ -224,41 +225,39 @@ All Go comparison runs use the pinned image and Go 1.26.10.
 
 | Command | Result |
 | --- | --- |
-| `sh tools/build_target.sh targets/uvarint/manifest.json` | Exit 0. Two identical builds. Existing AMD64 artifacts retain their hashes |
-| `sh tools/build_target.sh targets/uvarint/manifest-arm64.json` | Exit 0. Two identical ARM64 builds |
-| `python3 -I -B tools/link_check.py targets/uvarint/build` | Exit 0. 47 instructions, 140 bytes |
-| `python3 -I -B tools/link_check.py targets/uvarint/build-arm64` | Exit 0. 40 instructions, 160 exact reassembly bytes |
-| `python3 -I -B tools/link_check.py --selftest targets/uvarint/build` | Exit 0. Expected mutations fail and the unchanged control passes |
-| `python3 -I -B tools/link_check.py --selftest targets/uvarint/build-arm64` | Exit 0. Expected mutations fail and the unchanged control passes |
+| `sh tools/build_target.sh targets/uvarint/amd64/manifest.json` | Exit 0. Two identical builds. Existing AMD64 artifacts retain their hashes |
+| `sh tools/build_target.sh targets/uvarint/arm64/manifest.json` | Exit 0. Two identical ARM64 builds |
+| `python3 -I -B tools/link_check.py targets/uvarint/amd64/build` | Exit 0. 47 instructions, 140 bytes |
+| `python3 -I -B tools/link_check.py targets/uvarint/arm64/build` | Exit 0. 40 instructions, 160 exact reassembly bytes |
+| `python3 -I -B tools/link_check.py --selftest targets/uvarint/amd64/build` | Exit 0. Expected mutations fail and the unchanged control passes |
+| `python3 -I -B tools/link_check.py --selftest targets/uvarint/arm64/build` | Exit 0. Expected mutations fail and the unchanged control passes |
 | `(cd lean && lake build Machine Uvarint)` | Exit 0. All 124 build jobs complete |
 | `(cd lean && lake build --no-build Machine Uvarint)` | Exit 0. The built libraries are current |
-| `python3 -I -B tools/axioms_gate.py run /private/tmp/go-kraken-gate.json /private/tmp/go-kraken-dump.tsv` | Exit 0. 1262 scoped declarations, 1098 theorems, 13 hand-list names, and no forbidden axioms |
+| `python3 -I -B tools/axioms_gate.py run /private/tmp/go-kraken-symmetry-gate.json /private/tmp/go-kraken-symmetry-dump.tsv` | Exit 0. 1262 scoped declarations, 1098 theorems, 13 hand-list names, and no forbidden axioms |
 | `python3 -I -B tools/axioms_gate.py --selftest` | Exit 0. Scoped records and forbidden-axiom cases pass |
-| `python3 -I -B tools/negative.py --check-cases targets/uvarint/negative-cases.json` | Exit 0. Twelve valid cases |
-| `python3 -I -B tools/negative.py --check-cases targets/uvarint/negative-cases-arm64.json` | Exit 0. Three valid cases |
-| `python3 -I -B tools/negative.py targets/uvarint/negative-cases.json /private/tmp/go-kraken-negative-amd64 /private/tmp/go-kraken-negative-amd64.json` | Exit 0. Five controls and seven mutants pass |
-| `python3 -I -B tools/negative.py targets/uvarint/negative-cases-arm64.json /private/tmp/go-kraken-negative-arm64 /private/tmp/go-kraken-negative-arm64.json` | Exit 0. One control and two return mutants pass |
+| `python3 -I -B tools/negative.py --check-cases targets/uvarint/amd64/tests/negative-cases.json` | Exit 0. Twelve valid cases |
+| `python3 -I -B tools/negative.py --check-cases targets/uvarint/arm64/tests/negative-cases.json` | Exit 0. Three valid cases |
+| `python3 -I -B tools/negative.py targets/uvarint/amd64/tests/negative-cases.json /private/tmp/go-kraken-symmetry-negative-amd64 /private/tmp/go-kraken-symmetry-negative-amd64.json` | Exit 0. Five controls and seven mutants pass |
+| `python3 -I -B tools/negative.py targets/uvarint/arm64/tests/negative-cases.json /private/tmp/go-kraken-symmetry-negative-arm64 /private/tmp/go-kraken-symmetry-negative-arm64.json` | Exit 0. One control and two return mutants pass |
 | `python3 -I -B tools/negative.py --selftest` | Exit 0 |
 | `python3 -I -B tools/negative.py --selftest-timeout` | Exit 0. The intentional timeout leaves no child process |
-| `(cd lean && lake env lean --run ../targets/uvarint/arm64/SelfTest.lean)` | Exit 0. Nine known answers pass the complete state checks |
-| `sh targets/uvarint/differential/run.sh /private/tmp/go-kraken-differential-amd64 amd64` | Exit 0. Go and the specification agree on all 795 inputs |
-| `sh targets/uvarint/differential/run.sh /private/tmp/go-kraken-differential-arm64 arm64` | Exit 0. Go and the specification agree on all 795 inputs |
-| `(cd lean && lake env lean ../targets/uvarint/arm64/attempts/Result.lean)` | Exit 1. Unsolved goals for normal, incomplete, and overflow outcomes |
-| `(cd lean && lake env lean ../targets/uvarint/arm64/attempts/KernelWitness.lean)` | Exit 1. Kernel reduction fails for all three concrete execution attempts |
+| `(cd lean && lake env lean --run ../targets/uvarint/arm64/tests/SelfTest.lean)` | Exit 0. Nine known answers pass the complete state checks |
+| `sh targets/uvarint/differential/run.sh /private/tmp/go-kraken-symmetry-differential-amd64 amd64` | Exit 0. Go and the specification agree on all 795 inputs |
+| `sh targets/uvarint/differential/run.sh /private/tmp/go-kraken-symmetry-differential-arm64 arm64` | Exit 0. Go and the specification agree on all 795 inputs |
 | `python3 -I -B lean/.lake/packages/Kraken/Kraken/AArch64/Test/asm_tests.py lean/.lake/packages/Kraken/Kraken/AArch64/Test/asm` | Exit 1. The native runner is not built. QEMU is also unavailable |
-| `git diff aaedee5 --exit-code -- targets/uvarint/build lean/lake-manifest.json lean/lean-toolchain` | Exit 0. AMD64 artifacts and dependency pins remain unchanged |
+| `git diff d54bd4d --exit-code -- lean/lake-manifest.json lean/lean-toolchain` | Exit 0. Dependency pins remain unchanged |
 
 A temporary comment in each architecture assembly file makes `lake build --no-build Machine Uvarint` exit with 3.
 Restoring each file makes the same command exit with 0.
-The probe command is `python3 -I -B /private/tmp/go-kraken-freshness-probe.py`.
-The computed results are in `/private/tmp/go-kraken-assembly-freshness.json`.
+The probe changes only an assembly comment and restores the complete original file before it checks freshness again.
 
 The link self-tests skip data and global-reference cases because this target has neither input.
 The ARM64 link self-test also skips padding because its function has no padding instruction.
 The model, negative, and differential runs complete without a resource timeout or a memory-limit stop.
-The two failed proof attempts remain unfinished. Their nonzero exits are not passes.
+The historical failed proof attempts remain unfinished. Their nonzero exits are not passes.
 
-The full-result attempt reports this error and retains three case goals:
+The failed sources in commit `d54bd4d` report the following errors.
+The full-result attempt retains three case goals:
 
 ```text
 Result.lean:12:50: error: unsolved goals
@@ -279,6 +278,34 @@ Reduction got stuck at
 The Docker smoke commands also exit with 0 and print `47 1`:
 
 ```sh
-docker run --rm --network none --memory 4g -v "$PWD/targets/uvarint/build-arm64:/out:ro" golang:1.26.10@sha256:670bb5aa5349ae03b8516764718486f4f16399134bdc9acd0c46a23f043ab05c /out/target-arm64
-docker run --rm --network none --memory 4g -v "$PWD/targets/uvarint/build:/out:ro" golang:1.26.10@sha256:670bb5aa5349ae03b8516764718486f4f16399134bdc9acd0c46a23f043ab05c /out/target-amd64
+docker run --rm --network none --memory 4g -v "$PWD/targets/uvarint/arm64/build:/out:ro" golang:1.26.10@sha256:670bb5aa5349ae03b8516764718486f4f16399134bdc9acd0c46a23f043ab05c /out/target
+docker run --rm --network none --memory 4g -v "$PWD/targets/uvarint/amd64/build:/out:ro" golang:1.26.10@sha256:670bb5aa5349ae03b8516764718486f4f16399134bdc9acd0c46a23f043ab05c /out/target
 ```
+
+## Symmetric architecture paths
+
+Both architectures use `targets/uvarint/<arch>/manifest.json`, `build/`, `tests/`, and `README.md`.
+The binaries use `build/target`, and the symbol listings use `build/target.nm`.
+Both manifests refer to the shared Go package through `main_package: ../main`.
+The differential script requires an architecture and reads that architecture manifest.
+
+Machine declarations use `Machine.Amd64` or `Machine.Arm64`.
+Target declarations use `Uvarint.Amd64` or `Uvarint.Arm64`.
+The main statement names are `Uvarint.Amd64.Decode.result_statement` and `Uvarint.Arm64.Decode.result_statement`.
+These name changes preserve the statement assumptions and conclusions.
+The include commands and axiom-list filenames also name both architectures explicitly.
+
+A byte comparison with the previous paths preserves both executables, disassembly files, symbol listings, assembly files, and link reports.
+The manifests change their relative source paths and Lean constant names.
+Only their manifest-hash lines change in the build identifiers.
+The current checkout removes the failed proof sources because builds and tests do not need them.
+Git history retains those sources. The remaining ARM64 proof obligations remain open.
+
+The final checks cover these properties:
+
+- Both architecture roots contain the same names: `README.md`, `manifest.json`, `build`, and `tests`.
+- Both build directories contain the same artifact names.
+- Both main statement bodies match their previous versions exactly after removal of the definition name.
+- An incorrect architecture directory or target name stops manifest validation before Docker starts.
+- Both assembly inputs invalidate Lake freshness after a temporary comment change. Restoration returns exit 0.
+- The differential command rejects a missing or unsupported architecture with exit 2.

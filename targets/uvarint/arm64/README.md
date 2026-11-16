@@ -6,8 +6,8 @@ The complete result statement has no proof yet.
 
 ## Inputs and calling convention
 
-The manifest is `../manifest-arm64.json`.
-The artifacts are in `../build-arm64/`.
+The manifest is `manifest.json`.
+The artifacts are in `build/`.
 Both architectures use the same source package and main package.
 The Go image, Kraken commit, and Lean version remain pinned.
 
@@ -108,18 +108,9 @@ This runtime test is separate from the Lean kernel proofs.
 It does not execute the target ELF.
 The Go differential run compiles a separate comparison program for the selected architecture and compares its output with the specification. It does not execute either target ELF.
 
-## Reproduce the unfinished proofs
+## Unfinished obligations
 
-Run these commands from `lean/`.
-Both commands currently exit with 1. Their errors identify unfinished proof obligations. Neither command passes.
-
-```sh
-lake env lean ../targets/uvarint/arm64/attempts/Result.lean
-lake env lean ../targets/uvarint/arm64/attempts/KernelWitness.lean
-```
-
-`Result.lean` retains the complete statement and separates normal, incomplete, and overflow outcomes.
-It stops at the entry spill obligation in each outcome.
-`KernelWitness.lean` attempts closed execution proofs for empty, normal, and overflow inputs.
-`decide +kernel` cannot reduce the interpreter and memory operations to a Boolean answer.
-These files remain outside the Lake library directories. They contain no admitted proof.
+The complete result statement is `Uvarint.Arm64.Decode.result_statement`.
+The initial store, loop invariant, termination, and complete result proof remain unfinished.
+`FINDINGS.md` records the exact errors and required lemmas.
+Commit `d54bd4d` retains the failed proof sources. They are not part of the current test directories.

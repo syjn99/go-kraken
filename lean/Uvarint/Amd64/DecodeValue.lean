@@ -5,7 +5,7 @@ import Uvarint.Amd64.ShiftAndMask
 /-!
 # The value return of `encoding/binary.Uvarint`
 
-Directives 35 to 44 of `Uvarint.Code.uvarint`:
+Directives 35 to 44 of `Uvarint.Amd64.Code.uvarint`:
 
     L_62: mov %rcx,%rax       // i
           mov %rdx,%rcx       // 7 * i
@@ -18,10 +18,10 @@ Directives 35 to 44 of `Uvarint.Code.uvarint`:
           ret
 -/
 
-open Machine Uvarint.Code
+open Machine.Amd64 Uvarint.Amd64.Code
 variable [Host]
 
-namespace Uvarint
+namespace Uvarint.Amd64
 
 /-- Directives 39 to 44: from the shifted byte to the return. -/
 theorem Decode.value_tail (k : Nat) (hk : uvarint.IsInfixAt Host.prog k)
@@ -100,4 +100,4 @@ theorem Decode.value_path (k : Nat) (hk : uvarint.IsInfixAt Host.prog k)
       exact Decode.value_tail k hk ra p rsp rbp r14 buf R _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hm i sum b hi hsum
         rfl rfl rfl rfl hdec
 
-end Uvarint
+end Uvarint.Amd64

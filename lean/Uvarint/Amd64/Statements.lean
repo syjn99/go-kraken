@@ -31,10 +31,10 @@ Its first instruction stores rax into the argument spill slot of the caller at `
 It reads at most 11 bytes of the buffer. It writes no memory other than the spill slot.
 -/
 
-open Machine Uvarint.Code
+open Machine.Amd64 Uvarint.Amd64.Code
 variable [Host]
 
-namespace Uvarint
+namespace Uvarint.Amd64
 
 /-- **Main theorem of `encoding/binary.Uvarint`. One statement covers all three results.**
 
@@ -72,4 +72,4 @@ def Decode.result_statement : Prop :=
           ⋆ Eq (buf.At s.regs.rax.toBitVec) ⋆ R) st.data.dmem)
       ⟨s, Host.addrOf k⟩
 
-end Uvarint
+end Uvarint.Amd64

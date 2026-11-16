@@ -3,7 +3,7 @@ import Uvarint.SpecKnownAnswers
 import Machine.Amd64.WitnessHost
 
 /-!
-# Witnesses of `Uvarint.Decode.result`
+# Witnesses of `Uvarint.Amd64.Decode.result`
 
 The host holds only the real `encoding/binary.Uvarint`, at the index 0. Its directive `i` is at `0x10000 + i`.
 The memory is one block at `0x10000`. The block holds these parts:
@@ -18,9 +18,9 @@ Each theorem gives the concrete result registers.
 `runs_maximum` uses the largest value, not the largest buffer.
 -/
 
-open Machine Machine.Witness Uvarint.Code
+open Machine.Amd64 Machine.Amd64.Witness Uvarint.Amd64.Code
 
-namespace Uvarint.Witness.DecodeResult
+namespace Uvarint.Amd64.Witness.DecodeResult
 
 def program : Program := uvarint
 
@@ -120,4 +120,4 @@ theorem runs_maximum (zmms : RegZmms) (flags : StatusFlags) :
       exact ⟨h.1, e.1, e.2⟩)
     (runs (List.replicate 9 0xFF ++ [0x01]) (by decide) zmms flags)
 
-end Uvarint.Witness.DecodeResult
+end Uvarint.Amd64.Witness.DecodeResult

@@ -3,7 +3,7 @@ import Uvarint.Amd64.DecodeLoop
 /-!
 # Main theorem of `encoding/binary.Uvarint`
 
-The entry is directives 0 to 5 of `Uvarint.Code.uvarint`:
+The entry is directives 0 to 5 of `Uvarint.Amd64.Code.uvarint`:
 
     encoding_binary.Uvarint:
       mov %rax,0x8(%rsp)    // spill the buffer pointer
@@ -15,10 +15,10 @@ The entry is directives 0 to 5 of `Uvarint.Code.uvarint`:
 Then `Decode.loop` at the index 0 gives the conclusion.
 -/
 
-open Machine Uvarint.Code
+open Machine.Amd64 Uvarint.Amd64.Code
 variable [Host]
 
-namespace Uvarint
+namespace Uvarint.Amd64
 
 /-- **Main theorem of `encoding/binary.Uvarint`**: the machine code returns the machine form of
 `Uvarint.decode buf` for each buffer below `2 ^ 63` bytes. The statement is `Decode.result_statement`. -/
@@ -48,4 +48,4 @@ theorem Decode.result : Decode.result_statement := by
     rfl (by omega) (by omega) (by decide) rfl (by rw [xor_self_zero]; rfl) (by rw [xor_self_zero]; rfl)
     (by rw [xor_self_zero]; rfl)
 
-end Uvarint
+end Uvarint.Amd64

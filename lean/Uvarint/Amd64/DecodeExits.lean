@@ -4,7 +4,7 @@ import Uvarint.Amd64.Statements
 /-!
 # The three early returns of `encoding/binary.Uvarint`
 
-Directive indices of `Uvarint.Code.uvarint`:
+Directive indices of `Uvarint.Amd64.Code.uvarint`:
 - 32 to 34: `xor %eax,%eax`, `mov $-0xa,%rbx`, `ret` (overflow after 10 bytes).
 - 45 to 48: label, `xor %eax,%eax`, `mov $-0xb,%rbx`, `ret` (overflow after 11 bytes).
 - 49 to 52: label, `xor %eax,%eax`, `xor %ebx,%ebx`, `ret` (buffer too small).
@@ -12,10 +12,10 @@ Directive indices of `Uvarint.Code.uvarint`:
 The loop does not write memory. Thus each path ends with the memory of the loop.
 -/
 
-open Machine Uvarint.Code
+open Machine.Amd64 Uvarint.Amd64.Code
 variable [Host]
 
-namespace Uvarint
+namespace Uvarint.Amd64
 
 /-- The memory after the first instruction: the return address at `rsp`,
 the spill slot that holds the buffer pointer `p`, the buffer and the frame `R`. -/
@@ -111,4 +111,4 @@ theorem Decode.exit_overflow_ten (k : Nat) (hk : uvarint.IsInfixAt Host.prog k)
     | (apply UInt64.toBitVec_inj.mp; simp; done)
     | (simp only [Prod.mk.injEq]; constructor <;> (apply UInt64.toBitVec_inj.mp; decide))
 
-end Uvarint
+end Uvarint.Amd64

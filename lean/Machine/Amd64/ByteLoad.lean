@@ -8,7 +8,7 @@ A loop that reads `buf[i]` loads one byte from the middle of the block `buf`.
 The lemma splits the block around byte `i` and applies `load_step_at`.
 -/
 
-namespace Machine
+namespace Machine.Amd64
 
 /-- The block `buf` at `p` is its first `i` bytes, its byte `i` and the rest. -/
 theorem block_split_byte (buf : List UInt8) (p : BitVec 64) (i : Nat) (hi : i < buf.length)
@@ -52,4 +52,4 @@ theorem load_byte_step (s : MachineData) (p addr : BitVec 64) (ret : Width.W8.ty
   rw [ofInt_ofBytes_singleton]
   exact k
 
-end Machine
+end Machine.Amd64

@@ -19,7 +19,7 @@
     ],
     "tags": []
   },
-  "main_package": "main",
+  "main_package": "../main",
   "functions": [
     {
       "symbol": "encoding/binary.Uvarint",

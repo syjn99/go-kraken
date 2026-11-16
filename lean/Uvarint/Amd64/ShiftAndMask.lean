@@ -7,7 +7,7 @@ The loop shifts the payload of byte `i` left by `7 * i` and adds it to the sum w
 These lemmas give the shift count, the payload values and the `or` as an addition.
 -/
 
-namespace Uvarint
+namespace Uvarint.Amd64
 
 /-- `shl %cl` with `rcx = 7 * i` and `i ≤ 9`: the masked count is `7 * i`. -/
 theorem shift_count (i : Nat) (hi : i ≤ 9) :
@@ -51,4 +51,4 @@ theorem shiftLeft_or_ofNat (z : BitVec 64) (c sum : Nat) (hsum : sum < 2 ^ c) :
   simp only [BitVec.toNat_add, BitVec.toNat_shiftLeft, BitVec.toNat_ofNat, Nat.shiftLeft_eq]
   rw [Nat.add_comm sum (z.toNat * 2 ^ c), Nat.add_mod (z.toNat * 2 ^ c) sum]
 
-end Uvarint
+end Uvarint.Amd64

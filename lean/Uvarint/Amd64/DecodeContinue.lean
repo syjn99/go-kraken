@@ -5,7 +5,7 @@ import Uvarint.Amd64.Code
 /-!
 # One more byte: the loop body of `encoding/binary.Uvarint`
 
-Directives 6 to 18 of `Uvarint.Code.uvarint`, for a byte `b` with the top bit set at index `i`:
+Directives 6 to 18 of `Uvarint.Amd64.Code.uvarint`, for a byte `b` with the top bit set at index `i`:
 
     L_d: and $0x7f,%edi       // b & 0x7f
          mov %rcx,%r8         // i
@@ -23,10 +23,10 @@ Directives 6 to 18 of `Uvarint.Code.uvarint`, for a byte `b` with the top bit se
 The code continues at the loop head, which is directive 19. The lemmas hold for each final condition `post`.
 -/
 
-open Machine Uvarint.Code
+open Machine.Amd64 Uvarint.Amd64.Code
 variable [Host]
 
-namespace Uvarint
+namespace Uvarint.Amd64
 
 /-- Directives 11 to 18: from the shifted payload to the loop head. -/
 theorem Decode.continue_tail (k : Nat) (hk : uvarint.IsInfixAt Host.prog k) (post : MachineState → Prop)
@@ -110,4 +110,4 @@ theorem Decode.continue_path (k : Nat) (hk : uvarint.IsInfixAt Host.prog k) (pos
       intros
       exact Decode.continue_tail k hk post _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ i sum b hi hsum rfl rfl rfl rfl next
 
-end Uvarint
+end Uvarint.Amd64

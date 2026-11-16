@@ -7,9 +7,9 @@ import Machine.Amd64.Include
 The converted assembly of the pilot target. `tools/convert_objdump.py` writes the assembly file.
 -/
 
-namespace Uvarint
+namespace Uvarint.Amd64.Code
 
 /-- `encoding/binary.Uvarint` (`encoding/binary/varint.go`). 6 labels and 47 instructions. -/
-def Code.uvarint : Program := include_x64_code "../targets/uvarint/build/norm/encoding_binary.Uvarint.S"
+def uvarint : Program := include_amd64_code "../targets/uvarint/amd64/build/norm/encoding_binary.Uvarint.S"
 
-end Uvarint
+end Uvarint.Amd64.Code

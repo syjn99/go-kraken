@@ -9,7 +9,7 @@ import Std.Tactic.BVDecide
 /-! Step lemmas for one directive inside a `Host`, on top of Kraken commit 6064eec. -/
 
 
-namespace Machine
+namespace Machine.Amd64
 
 /-- Kraken computes `disp(%reg)` as `BitVec.ofInt 64 (reg.toInt + disp)`. -/
 theorem ofInt_toInt_add (x : BitVec 64) (c : Int) :
@@ -115,24 +115,24 @@ theorem eventually_step_directive {k : Nat} {d : Directive} {p : Program} (hdp :
     Eventually (step1 Host.exe) final ⟨s, Host.addrOf k⟩ :=
   eventually_trans _ _ _ _ (Host.eventually_of_interp hdp h) (fun _ h => h)
 
-end Machine
+end Machine.Amd64
 
 /-- Unfold one instruction and put the addresses into normal form.
 The tactic stops at `MachineData.load` and `MachineData.store`. -/
 macro "unfold_step" : tactic => `(tactic| simp only [Directive.interp, Instr.interp, Operation.interp,
-  Operand.interp, RegOrMem.interp, RelRegOrMem.interp, Machine.jmp_rel, ShiftCountExpr.interpMasked, ShiftCountExpr.interp, AddrExpr.interp, ConstExpr.interp, MachineData.set,
+  Operand.interp, RegOrMem.interp, RelRegOrMem.interp, Machine.Amd64.jmp_rel, ShiftCountExpr.interpMasked, ShiftCountExpr.interp, AddrExpr.interp, ConstExpr.interp, MachineData.set,
   MachineData.setReg, Effects.All, Width.bits, Width.bytes, Width.bytesv, Int.add_zero, BitVec.setWidth_eq,
   Reg64s.get, Reg64s.get64, Reg64s.set, Reg64s.set64, Reg.base, Reg.offset, BitVec.toAddressSize,
-  BitVec.take, BitVec.drop, BitVec.signed, Machine.ofInt_base_index_scale, Machine.ofInt_ofBytes_toBytes64, Machine.ofInt_toInt_add, Machine.ofInt_int64, Machine.extractLsb'_full,
-  Nat.sub_zero, Int64.toBitVec_ofNat, Int64.toBitVec_neg, UInt64.toBitVec_ofNat, BitVec.add_zero, Machine.add_ofNat_zero, Machine.add_lit_zero, Machine.add_ofInt_zero, Machine.add_int64_zero, Machine.rip_addr, Machine.rip_addr'])
+  BitVec.take, BitVec.drop, BitVec.signed, Machine.Amd64.ofInt_base_index_scale, Machine.Amd64.ofInt_ofBytes_toBytes64, Machine.Amd64.ofInt_toInt_add, Machine.Amd64.ofInt_int64, Machine.Amd64.extractLsb'_full,
+  Nat.sub_zero, Int64.toBitVec_ofNat, Int64.toBitVec_neg, UInt64.toBitVec_ofNat, BitVec.add_zero, Machine.Amd64.add_ofNat_zero, Machine.Amd64.add_lit_zero, Machine.Amd64.add_ofInt_zero, Machine.Amd64.add_int64_zero, Machine.Amd64.rip_addr, Machine.Amd64.rip_addr'])
 
 /-- Execute directive `n` of the code fragment `prog`. The fact `hk` puts the fragment at index `k`.
 `simp` calculates the rest of the fragment.
 A definitional unfolding of `List.drop` on a long list literal goes past the recursion limit near `n = 44`. -/
 macro "step_directive " hk:term:max prog:ident n:num : tactic => `(tactic| (
-  have hkat := Machine.isInfixAt_drop $hk $n
+  have hkat := Machine.Amd64.isInfixAt_drop $hk $n
   simp only [$prog:ident, List.drop_succ_cons, List.drop_zero] at hkat
-  apply Machine.eventually_step_directive hkat
+  apply Machine.Amd64.eventually_step_directive hkat
   clear hkat
   unfold_step))
 

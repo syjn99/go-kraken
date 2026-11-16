@@ -9,7 +9,7 @@ If no such directive exists, the address is `-1`.
 `label_eq_addrOf` changes that address into `Host.addrOf j` for the first occurrence `j`.
 -/
 
-namespace Machine
+namespace Machine.Amd64
 
 theorem findSome?_eq_of_first {α β : Type} (f : α → Option β) :
     ∀ (L : List α) (j : Nat) (x : α) (v : β), L[j]? = some x → f x = some v →
@@ -92,13 +92,13 @@ theorem label_at' {p : Program} {k : Nat} (hk : p.IsInfixAt Host.prog k) (hf : L
   have := @List.contains_iff_mem _ instBEqOfDecidableEq _ _ _ |>.mpr hmem
   rw [hin] at this; exact absurd this (by decide)
 
-end Machine
+end Machine.Amd64
 
 /-- Rewrite `label l` to `Host.addrOf (k + j)`, for the label at directive `j` of the code fragment `prog`.
 `simp` proves the side conditions.
 The proof terms of `decide` and `rfl` go past the recursion limit for long fragments. -/
 macro "label_address " hk:term:max hf:term:max prog:ident j:num : tactic => `(tactic| (
-  have hkl := Machine.label_at' $hk $hf (j := $j)
+  have hkl := Machine.Amd64.label_at' $hk $hf (j := $j)
     (by simp only [$prog:ident, List.getElem?_cons_succ, List.getElem?_cons_zero]; rfl)
     (by simp only [$prog:ident, List.take_succ_cons, List.take_zero, List.contains_cons, List.contains_nil]; decide)
   rw [hkl]; clear hkl))

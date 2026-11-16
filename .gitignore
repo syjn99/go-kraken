@@ -1,6 +1,3 @@
-# Git does not track the ELF of a target. tools/build_target.sh builds it again.
-targets/*/build/target-amd64
-# The second build of tools/build_target.sh. It stays only when the two builds are different.
-targets/*/build/second-build/
-targets/*/build-arm64/target-arm64
-targets/*/build-arm64/second-build/
+# Rebuild the ELF and temporary comparison build from each architecture manifest.
+targets/*/*/build/target
+targets/*/*/build/second-build/

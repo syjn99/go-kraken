@@ -11,9 +11,9 @@ A witness file builds one host for each main theorem.
 `mk_label` resolves a label to its address.
 -/
 
-open Machine
+open Machine.Amd64
 
-namespace Machine.Witness
+namespace Machine.Amd64.Witness
 
 theorem sizeBefore_one (P : Program) (j : Nat) :
     ((Kraken.Layout.apply ⟨0x10000, fun _ => 1⟩ P).program.take j |>.map (·.size)).sum = min j P.length := by
@@ -114,4 +114,4 @@ macro_rules
       repeat rw [Mem.At_append_sep _ _ _ (by simp only [$l1,*]; omega)] at H
       simp only [$l2,*] at H))
 
-end Machine.Witness
+end Machine.Amd64.Witness

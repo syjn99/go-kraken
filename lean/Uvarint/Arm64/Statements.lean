@@ -33,7 +33,7 @@ def Post (s : MachineData) (buf : List UInt8) (R : DataMem → Prop) (st : Machi
     Eq (buf.At s.regs.X0.toBitVec) ⋆ R) st.data.dmem
 
 /-- Complete Uvarint behavior at its pinned ELF address, including all three outcomes. -/
-def result_statement : Prop :=
+def Decode.result_statement : Prop :=
   ∀ (s : MachineData) (buf spill : List UInt8) (R : DataMem → Prop),
     spill.length = 8 →
     s.regs.X1 = UInt64.ofNat buf.length →

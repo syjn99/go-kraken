@@ -1,12 +1,12 @@
 PASS pins: the ELF, the disassembly and the symbol listing have the sha256 values of build-ids.txt
-PASS (a) encoding_binary.Uvarint: 47 instructions, 140 bytes, symtab/objdump/LLVM/ELF bytes and labels agree
-PASS (c) all.S: 6 labels, each defined once; 0 external references not defined in all.S; 0 calls to target functions at their entry: []
-PASS (e) all.S: 53 directives equal the 1 function files in order
-PASS (f) the data set is empty: no data files in data/
-DIFF (d) encoding_binary.Uvarint 0x482d1c padding: elf 0f1f4000 asm 90 nopl (%rax) -> nop | (4, 'nopl (%rax)')
-PASS (d) 47 instructions reassembled by clang x86_64-linux-gnu: 46 byte-identical, 0 encoding, 1 padding
+PASS code encoding_binary.Uvarint: 47 instructions, 140 bytes. The symbol table, objdump, LLVM, the ELF bytes and the labels agree
+PASS labels all.S: 6 labels, each with one definition. 0 external references, which all.S does not define. 0 calls to target functions at their entry: []
+PASS host program all.S: its 53 directives are the directives of the 1 function files in order
+PASS data: the data set is empty. The directory data/ has no data files
+DIFF reassembly encoding_binary.Uvarint 0x482d1c padding: elf 0f1f4000 asm 90 nopl (%rax) -> nop | (4, 'nopl (%rax)')
+PASS reassembly: clang x86_64-linux-gnu assembled 47 instructions again: 46 with the same bytes, 0 with another encoding, 1 padding
 elf sha256 d98344b2ae3332ec11e85b2cc3eace23abd0f87a6f3d5ad2150f03e5d1e0c091
 S sha256 1d92a2bf82c751c0aa4e864d0d3474825c56a44821a631701ecd45237b00bad4 all.S
 S sha256 1d92a2bf82c751c0aa4e864d0d3474825c56a44821a631701ecd45237b00bad4 encoding_binary.Uvarint.S
 PASS all
-BUNDLE sha256 ce4729055a628929194435567a43a1207f7a5f748aaa7d2686eed4cc87762c0a
+BUNDLE sha256 d7415f9c73bc4df19939c8fa6a5bca9d6d9b8c896aba0b1bd3231de268109ddc

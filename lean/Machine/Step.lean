@@ -1,4 +1,4 @@
--- Source: reference commit 320929dd, fv/kraken/lean/Machine/Step.lean.
+-- Source: `fv/kraken/lean/Machine/Step.lean` of methodical-ssz commit 320929dd.
 import Kraken.X64.WP
 import Kraken.X64.Sep
 import Kraken.Tactics
@@ -7,7 +7,7 @@ import Kraken.X64.Parser
 import Machine.Include
 import Std.Tactic.BVDecide
 
-/-! Our glue on top of Kraken main (6064eec): one-directive steps inside a `Host`. -/
+/-! Step lemmas for one directive inside a `Host`, on top of Kraken commit 6064eec. -/
 
 
 namespace Machine
@@ -23,14 +23,14 @@ theorem rip_addr (u l : Int64) : BitVec.ofInt 64 (u.toInt + (l - u).toInt) = l.t
     Int64.toBitVec_sub]
   bv_omega
 
-/-- `rip_addr` after simp has expanded `Int64` subtraction into `bmod`. -/
+/-- The form of `rip_addr` after `simp` changes the `Int64` subtraction into `bmod`. -/
 theorem rip_addr' (u l : Int64) :
     u.toBitVec + BitVec.ofInt 64 ((l.toInt - u.toInt).bmod 18446744073709551616) = l.toBitVec := by
   have := rip_addr u l
   rw [BitVec.ofInt_add, Int64.toInt, BitVec.ofInt_toInt] at this
   rw [← this, Int64.toInt_sub]
 
-/-- `disp(%base,%index,scale)`. -/
+/-- The address `disp(%base,%index,scale)`. -/
 theorem ofInt_base_index_scale (x y : BitVec 64) (c : Nat) (d : Int64) :
     BitVec.ofInt 64 (x.toInt + y.toInt * (c : Int) + d.toInt) = x + y * BitVec.ofNat 64 c + d.toBitVec := by
   rw [BitVec.ofInt_add, BitVec.ofInt_add, BitVec.ofInt_mul, BitVec.ofInt_toInt, BitVec.ofInt_toInt,
@@ -39,7 +39,7 @@ theorem ofInt_base_index_scale (x y : BitVec 64) (c : Nat) (d : Int64) :
 theorem ofInt_int64 (x : Int64) : BitVec.ofInt 64 x.toInt = x.toBitVec := by
   rw [Int64.toInt, BitVec.ofInt_toInt]
 
--- The normalization set Kraken's Examples.lean registers (file-local there), plus ours.
+-- The simplification set that `Examples.lean` of Kraken registers in that file, and the lemmas of this file.
 attribute [ksimp]
   BitVec.add_zero BitVec.ofInt_add BitVec.ofInt_ofNat BitVec.ofInt_toInt BitVec.ofNat_uInt64ToNat
   BitVec.setWidth_eq Int.add_zero Int64.toInt_neg Nat.shiftRight_zero Nat.sub_zero
@@ -61,7 +61,7 @@ theorem add_lit_zero {w : Nat} (x : BitVec w) : x + (0 : BitVec w) = x := by sim
 theorem add_int64_zero (x : BitVec 64) : x + Int64.toBitVec 0 = x := by
   rw [show Int64.toBitVec 0 = 0#64 from rfl]; simp
 
-/-- A load from a separated chunk, without `kstep`'s `grind`. -/
+/-- A load from a separate memory region, without the `grind` call of `kstep`. -/
 theorem load_step (s : MachineData) (addr : BitVec 64) (w : Width) (ret : w.type → MachineData → Effects)
     (bs : List UInt8) (F : DataMem → Prop) (post : MachineState → Prop)
     (H : (Eq (bs.At addr) ⋆ F) s.dmem) (hl : bs.length = w.bytes)
@@ -69,7 +69,7 @@ theorem load_step (s : MachineData) (addr : BitVec 64) (w : Width) (ret : w.type
     (MachineData.load s addr w ret).All post := by
   rw [load_sep s addr w ret bs F H hl, Effects.All_require_read_access]; exact k
 
-/-- A store into a separated chunk. The new memory is a fresh variable. -/
+/-- A store into a separate memory region. The new memory is a new variable. -/
 theorem store_step (s : MachineData) (addr : BitVec 64) (w : Width) (v : w.type) (ret : MachineData → Effects)
     (bs : List UInt8) (F : DataMem → Prop) (post : MachineState → Prop)
     (H : (Eq (bs.At addr) ⋆ F) s.dmem) (hl : bs.length = w.bytes)
@@ -78,7 +78,7 @@ theorem store_step (s : MachineData) (addr : BitVec 64) (w : Width) (v : w.type)
   rw [store_sep s addr w v ret bs F H hl, Effects.All_require_write_access]
   exact k _ (Mem.storeInt_sep addr w.bytes bs F s.dmem ⟨H, hl⟩ v.toInt)
 
-/-- `load_step` with the chunk address given up to an equation. -/
+/-- `load_step` with an equation for the address of the region. -/
 theorem load_step_at (s : MachineData) (addr addr' : BitVec 64) (w : Width) (ret : w.type → MachineData → Effects)
     (bs : List UInt8) (F : DataMem → Prop) (post : MachineState → Prop) (he : addr = addr')
     (H : (Eq (bs.At addr') ⋆ F) s.dmem) (hl : bs.length = w.bytes)
@@ -86,7 +86,7 @@ theorem load_step_at (s : MachineData) (addr addr' : BitVec 64) (w : Width) (ret
     (MachineData.load s addr w ret).All post := by
   subst he; exact load_step s addr w ret bs F post H hl k
 
-/-- `store_step` with the chunk address given up to an equation. -/
+/-- `store_step` with an equation for the address of the region. -/
 theorem store_step_at (s : MachineData) (addr addr' : BitVec 64) (w : Width) (v : w.type) (ret : MachineData → Effects)
     (bs : List UInt8) (F : DataMem → Prop) (post : MachineState → Prop) (he : addr = addr')
     (H : (Eq (bs.At addr') ⋆ F) s.dmem) (hl : bs.length = w.bytes)
@@ -107,7 +107,7 @@ theorem isInfixAt_drop {α : Type} {p l : List α} {k : Nat} (h : p.IsInfixAt l 
 
 variable [Host]
 
-/-- One directive of a fragment at index `k`, chained into `Eventually`. -/
+/-- One directive of a code fragment at index `k`, as one step of `Eventually`. -/
 theorem eventually_step_directive {k : Nat} {d : Directive} {p : Program} (hdp : (d :: p).IsInfixAt Host.prog k)
     {final : MachineState → Prop} {s : MachineData}
     (h : (d.interp s ⟨Host.addrOf k, Host.addrOf (k + 1)⟩
@@ -118,7 +118,8 @@ theorem eventually_step_directive {k : Nat} {d : Directive} {p : Program} (hdp :
 
 end Machine
 
-/-- Unfold one instruction and normalize addresses. It stops at `MachineData.load` and `MachineData.store`. -/
+/-- Unfold one instruction and put the addresses into normal form.
+The tactic stops at `MachineData.load` and `MachineData.store`. -/
 macro "unfold_step" : tactic => `(tactic| simp only [Directive.interp, Instr.interp, Operation.interp,
   Operand.interp, RegOrMem.interp, RelRegOrMem.interp, Machine.jmp_rel, ShiftCountExpr.interpMasked, ShiftCountExpr.interp, AddrExpr.interp, ConstExpr.interp, MachineData.set,
   MachineData.setReg, Effects.All, Width.bits, Width.bytes, Width.bytesv, Int.add_zero, BitVec.setWidth_eq,
@@ -126,9 +127,9 @@ macro "unfold_step" : tactic => `(tactic| simp only [Directive.interp, Instr.int
   BitVec.take, BitVec.drop, BitVec.signed, Machine.ofInt_base_index_scale, Machine.ofInt_ofBytes_toBytes64, Machine.ofInt_toInt_add, Machine.ofInt_int64, Machine.extractLsb'_full,
   Nat.sub_zero, Int64.toBitVec_ofNat, Int64.toBitVec_neg, UInt64.toBitVec_ofNat, BitVec.add_zero, Machine.add_ofNat_zero, Machine.add_lit_zero, Machine.add_ofInt_zero, Machine.add_int64_zero, Machine.rip_addr, Machine.rip_addr'])
 
-/-- Step directive `n` of fragment `prog` (at index `k`, fact `hk`): the fragment
-suffix is computed by `simp` (definitional unfolding of `List.drop` on a long
-literal list exceeds the recursion limit near n = 44). -/
+/-- Execute directive `n` of the code fragment `prog`. The fact `hk` puts the fragment at index `k`.
+`simp` calculates the rest of the fragment.
+A definitional unfolding of `List.drop` on a long list literal goes past the recursion limit near `n = 44`. -/
 macro "step_directive " hk:term:max prog:ident n:num : tactic => `(tactic| (
   have hkat := Machine.isInfixAt_drop $hk $n
   simp only [$prog:ident, List.drop_succ_cons, List.drop_zero] at hkat
@@ -136,8 +137,8 @@ macro "step_directive " hk:term:max prog:ident n:num : tactic => `(tactic| (
   clear hkat
   unfold_step))
 
-/-- `shl $n` on a 64-bit register after `unfold_step`: decide the count, introduce the
-undefined AF and OF flags. -/
+/-- Execute `shl $n` on a 64-bit register after `unfold_step`.
+The tactic decides the count and introduces the undefined AF and OF flags. -/
 macro "shift_left64 " n:num : tactic => `(tactic| (
   split
   case isTrue h => exact absurd h (by decide)
@@ -146,8 +147,8 @@ macro "shift_left64 " n:num : tactic => `(tactic| (
     [show (BitVec.extractLsb' 0 8 ($n : BitVec 64)).toNat &&& 63 = $n by decide, ↓reduceIte, Effects.All]
   intro _))
 
-/-- Address equation by `toNat` and `omega`, looking at the goal only (`bv_omega`
-simplifies every hypothesis and hits the recursion limit on large memory facts). -/
+/-- Prove an address equation with `toNat` and `omega`. The tactic examines only the goal.
+`bv_omega` simplifies each hypothesis and gets to the recursion limit on large memory facts. -/
 macro "address_equation" : tactic => `(tactic| (
   apply BitVec.eq_of_toNat_eq
   simp only [BitVec.toNat_add, BitVec.toNat_sub, BitVec.toNat_neg, BitVec.toNat_ofNat, BitVec.ofNat_eq_ofNat,

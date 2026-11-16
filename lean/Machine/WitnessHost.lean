@@ -1,15 +1,15 @@
--- Source: reference commit 320929dd, fv/kraken/lean/Machine/WitnessHost.lean.
+-- Source: `fv/kraken/lean/Machine/WitnessHost.lean` of methodical-ssz commit 320929dd.
 import Machine.Labels
 import Machine.Bytes
 
 /-!
 # Witness hosts
 
-`mkHost P`: a `Host` whose program is `P` and whose directive `i` sits at
-address `0x10000 + i` (every directive has size 1). Witness files build one
-host per main theorem: data labels first, then the target function, then the
-runtime models. `labelsFresh_of` turns a Boolean label check into
-`LabelsFresh`. `mk_label` resolves a label to its address.
+`mkHost P` is a `Host` with the program `P`. Its directive `i` is at the address `0x10000 + i`.
+Thus each directive has the size 1.
+A witness file builds one host for each main theorem.
+`labelsFresh_of` changes a Boolean label check into `LabelsFresh`.
+`mk_label` resolves a label to its address.
 -/
 
 open Machine
@@ -23,7 +23,7 @@ theorem sizeBefore_one (P : Program) (j : Nat) :
       = List.replicate P.length 1 by apply List.ext_getElem <;> simp]
   simp [List.take_replicate]
 
-/-- The witness host of program `P` (at most 2^32 directives). -/
+/-- The witness host of the program `P`. The program has fewer than `2 ^ 32` directives. -/
 @[instance_reducible] def mkHost (P : Program) (hP : P.length < 2 ^ 32) : Host where
   prog := P
   layout := ⟨0x10000, fun _ => 1⟩
@@ -77,13 +77,13 @@ theorem nil_At_emp (a : BitVec 64) : Eq (([] : List UInt8).At a) = Std.ExtHashMa
   funext m; apply propext; simp only [List.At, List.mapIdx_nil, Std.ExtHashMap.ofList_nil, Std.ExtHashMap.emp]
   exact ⟨Eq.symm, Eq.symm⟩
 
-/-- `X` sits at index `A.length` of `A ++ (X ++ B)`. -/
+/-- `X` is at the index `A.length` of `A ++ (X ++ B)`. -/
 theorem infixAt_of {P : Program} (A : Program) {X : Program} (B : Program) {n : Nat}
     (hP : P = A ++ (X ++ B)) (hn : A.length = n) : X.IsInfixAt P n := by
   subst hP hn
   exact ⟨B, by rw [List.drop_left]⟩
 
-/-- A label that does not occur in the first `k` directives sits at no index below `k`. -/
+/-- A label that does not occur in the first `k` directives is at no index below `k`. -/
 theorem notLabel_of [Host] {k : Nat} {l : Label} (h : l ∉ programLabels (Host.prog.take k)) :
     ∀ i < k, Host.prog[i]? ≠ some (.label l) := by
   intro i hi hp
@@ -93,9 +93,10 @@ theorem notLabel_of [Host] {k : Nat} {l : Label} (h : l ∉ programLabels (Host.
 theorem uint64_toBitVec_zero : (UInt64.toBitVec 0) = 0#64 := rfl
 theorem uint64_toBitVec_ofNat (n : Nat) : (UInt64.ofNat n).toBitVec = BitVec.ofNat 64 n := rfl
 
-/-- Split `H : Eq ((block ..).At a) m` into one `Eq (chunk.At addr)` per chunk and
-normalize the addresses. The terms are the length hypotheses of the chunks.
-Hygiene is off: `H` and `block` are the witness file's names. -/
+/-- Split `H : Eq ((block ..).At a) m` into one `Eq (part.At addr)` for each part.
+Then put the addresses into normal form.
+The terms are the length hypotheses of the parts.
+Hygiene is off, because `H` and `block` are names of the witness file. -/
 syntax "witness_split" (" [" term,* "]")? : tactic
 set_option hygiene false in
 macro_rules

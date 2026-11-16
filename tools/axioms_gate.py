@@ -1,31 +1,38 @@
 #!/usr/bin/env python3
-# Source: methodical-ssz commit 320929dd, fv/kraken/gen/checks/axioms_gate.py (paths changed for this repository).
-"""Axioms gate over EVERY declaration of EVERY Lean library of lean/.
+# Source: fv/kraken/gen/checks/axioms_gate.py of methodical-ssz commit 320929dd, with the paths of this repository.
+"""Axioms gate over each declaration of each Lean library of lean/.
 
-Usage (one gated job, Lean env; the cwd does not matter):
+Usage. The command run is a Lean job. The working directory does not matter.
   axioms_gate.py run <out.json> <dump.tsv> [--extra-lean-path DIR --extra-module M]...
-  axioms_gate.py check <dump.tsv> <out.json>       (pure Python, no Lean)
-  axioms_gate.py --selftest                       (crafted inputs, no Lean)
+  axioms_gate.py check <dump.tsv> <out.json>       (Python only, no Lean)
+  axioms_gate.py --selftest                       (made inputs, no Lean)
 
-The gate reads two things at run time. It has no library name and no list name in its text.
- * Libraries: the `name = "..."` line of each `[[lean_lib]]` block of lean/lakefile.toml.
-   Each library must have the glob `<name>.+`. Its modules are the *.lean files under lean/<name>/.
-   A library with another glob form, or with no module, stops the gate (exit 2).
- * Hand lists: every *.lean file directly in tools/axioms-lists/. Each one is a list of
-   `#print axioms <name>` lines with the imports that the names need. No list file stops the gate (exit 2).
-   The selftest only reports the number of hand lists of the tree. It also runs when there is none.
+The gate reads two inputs at run time. Its text names no library and no list.
+- Libraries: the `name = "..."` line of each `[[lean_lib]]` block of lean/lakefile.toml.
+  Each library must have the glob `<name>.+`. Its modules are the *.lean files under lean/<name>/.
+  A library with a different glob form, or with no module, stops the gate with exit status 2.
+- Hand lists: each *.lean file directly in tools/axioms-lists/.
+  Each file has `#print axioms <name>` lines and the imports that the names need.
+  If the directory has no list file, the gate stops with exit status 2.
+  The self-test reports the number of hand lists of the tree. It also runs when there is no hand list.
 
-run:
- 1. Freshness precheck: `lake build --no-build <all modules>` must exit 0; else exit 2, nothing else runs.
-    `lake env lean` itself does no trace check.
- 2. `lake env lean --run <decl_dump.lean> --root <library>... <modules>` (every library) writes one row per
-    declaration (name, kind, type hash, value hash, sorted Lean.collectAxioms set) to <dump.tsv>. decl_dump.lean is
-    tools/decl_dump.lean (read only). --extra-* adds a scratch .olean (negative control only).
- 3. check: every row's axiom set is a subset of {propext, Classical.choice, Quot.sound}; no sorryAx; every name of
-    the hand lists exists in the dump ("must exist"). Names are read from tab-separated columns, so names with `'`
-    work.
-Exit 0 PASS; 1 FAIL (non-standard axiom, sorryAx, a missing hand-list name, or an empty dump); 2 precheck, dump,
-lakefile or hand-list discovery failed. Python 3 stdlib only."""
+The command run has these steps:
+- Freshness check: `lake build --no-build <all modules>` must exit with 0.
+  If it does not, the exit status is 2 and no other step runs. `lake env lean` does no freshness check.
+- Dump: `lake env lean --run tools/decl_dump.lean --root <library>... <modules>` runs for all libraries.
+  It writes one row for each declaration to <dump.tsv>.
+  A row has the name, the kind, the type hash, the value hash and the sorted set of `Lean.collectAxioms`.
+  The --extra options add an .olean file from a scratch directory. Use them only to test the gate itself.
+- Check: the axiom set of each row is a subset of {propext, Classical.choice, Quot.sound}.
+  No row has sorryAx. The dump holds each name of the hand lists.
+  The dump has its header line, and no name occurs in two rows.
+  Tabs separate the columns, so a name with `'` works.
+
+The exit status is 0 for PASS.
+It is 1 for FAIL: an axiom that is not allowed, sorryAx, a hand-list name that the dump does not hold,
+a name in two rows, a dump without a header, or an empty dump.
+It is 2 when the freshness check, the dump, or the discovery of the libraries or hand lists fails.
+The tool uses only the Python 3 standard library."""
 import collections
 import json
 import os
@@ -45,11 +52,11 @@ ALLOWED = {"propext", "Classical.choice", "Quot.sound"}
 
 
 class SetupError(Exception):
-    """The lakefile, a library directory or the hand-list directory is not in the form that the gate reads."""
+    """The lakefile, a library directory or the hand-list directory does not have the form that the gate reads."""
 
 
 def libraries(text):
-    """The library names of a lakefile.toml text, in file order. Only `[[lean_lib]]` blocks count.
+    """The library names of a lakefile.toml text, in the order of the file. Only `[[lean_lib]]` blocks count.
     Each block must have one `name = "..."` line and the line `globs = ["<name>.+"]`."""
     libs, block = [], None
 
@@ -57,10 +64,10 @@ def libraries(text):
         if b is None:
             return
         if len(b["name"]) != 1:
-            raise SetupError(f"lakefile: a [[lean_lib]] block has {len(b['name'])} name lines")
+            raise SetupError(f"lakefile: a [[lean_lib]] block has {len(b['name'])} name lines, not 1")
         n = b["name"][0]
         if b["globs"] != [f'"{n}.+"']:
-            raise SetupError(f"lakefile: library {n}: globs {b['globs']} is not [\"{n}.+\"]")
+            raise SetupError(f"lakefile: library {n}: the globs {b['globs']} are not [\"{n}.+\"]")
         libs.append(n)
 
     for line in text.splitlines():
@@ -79,30 +86,30 @@ def libraries(text):
         if m:
             block["globs"] = [g.strip() for g in m.group(1).split(",") if g.strip()]
         elif s.startswith("globs"):
-            raise SetupError(f"lakefile: globs line not on one line: {line!r}")
+            raise SetupError(f"lakefile: the globs entry is not on one line: {line!r}")
     close(block)
     if not libs:
-        raise SetupError("lakefile: no [[lean_lib]] block")
+        raise SetupError("lakefile: the file has no [[lean_lib]] block")
     return libs
 
 
 def modules(lean, libs):
-    """The module names of the libraries: every *.lean file under <lean>/<library>/."""
+    """The module names of the libraries: each *.lean file under <lean>/<library>/."""
     ms = []
     for r in libs:
         fs = sorted((lean / r).rglob("*.lean")) if (lean / r).is_dir() else []
         if not fs:
-            raise SetupError(f"library {r}: no *.lean file under {lean / r}")
+            raise SetupError(f"library {r}: {lean / r} has no *.lean file")
         for f in fs:
             ms.append(".".join(f.relative_to(lean).with_suffix("").parts))
     return ms
 
 
 def list_files(d):
-    """The hand-list files: every *.lean file directly in d, sorted by name."""
+    """The hand-list files: each *.lean file directly in d, in the order of the names."""
     fs = sorted(f for f in d.glob("*.lean") if f.is_file()) if d.is_dir() else []
     if not fs:
-        raise SetupError(f"no hand-list file (*.lean) in {d}")
+        raise SetupError(f"{d} has no hand-list file (*.lean)")
     return fs
 
 
@@ -114,7 +121,7 @@ def hand_names(d=None):
 
 
 def check(rows, header, must):
-    """rows: list of (name, kind, axioms list). Returns the result dict."""
+    """rows: a list of (name, kind, axiom list). The result is a dictionary."""
     by = {n: (k, a) for n, k, a in rows}
     duplicate = sorted(n for n, c in collections.Counter(n for n, _, _ in rows).items() if c > 1)
     nonstd = {n: a for n, (k, a) in by.items() if not set(a) <= ALLOWED}
@@ -144,7 +151,7 @@ def parse(tsv):
             continue
         f = l.split("\t")
         if len(f) != 5:
-            raise ValueError(f"bad row: {l!r}")
+            raise ValueError(f"the row does not have 5 fields: {l!r}")
         rows.append((f[0], f[1], [] if f[4] == "-" else f[4].split(",")))
     return header, rows
 
@@ -175,7 +182,7 @@ def cmd_run(out, dump, extra_paths, extra_mods):
         return 2
     roots = sum((["--root", r] for r in libs), [])
     argv = ["lake", "env", "lean", "--run", str(DUMP)] + roots + ms
-    if extra_paths:  # negative control only: a scratch .olean outside the tree
+    if extra_paths:  # a test of the gate only: an .olean file in a scratch directory
         argv = ["lake", "env", "sh", "-c", 'LEAN_PATH="$0:$LEAN_PATH" exec "$@"', ":".join(extra_paths),
                 "lean", "--run", str(DUMP)] + roots + ms + extra_mods
         info["extra_modules"] = extra_mods
@@ -196,7 +203,7 @@ def selftest():
         if got != want:
             bad.append((name, got, want))
 
-    # 1. check(): crafted dumps. The names use an invented root `Lib`, not a library of the tree.
+    # check(): made dumps. The names use the root `Lib`, which is not a library of the tree.
     H = "# decl_dump v1 lean=x githash=y roots=Lib"
     ok_rows = "\n".join([H, "Lib.a\ttheorem\t0\t-\tpropext", "Lib.b'\ttheorem\t0\t-\t-",
                          "Lib.c\tdef\t0\t1\tClassical.choice,Quot.sound,propext"])
@@ -222,7 +229,7 @@ def selftest():
             return True
         return False
 
-    # 2. Lakefile parsing: only [[lean_lib]] blocks count; [[require]] and [[input_dir]] names do not.
+    # The lakefile parser: only [[lean_lib]] blocks count. The names of [[require]] and [[input_dir]] do not count.
     lake = "\n".join([
         'name = "pkg"', 'defaultTargets = ["LibA"]', "", "[[require]]", 'name = "Dependency"', 'rev = "0"', "",
         "# [[lean_lib]] in a comment", "[[lean_lib]]", 'name = "LibA"   # trailing comment', 'globs = ["LibA.+"]', "",
@@ -238,14 +245,14 @@ def selftest():
 
     with tempfile.TemporaryDirectory() as t:
         t = pathlib.Path(t)
-        # 3. Module discovery: a library without a directory or without a module fails.
+        # The module discovery: a library without a directory or without a module fails.
         (t / "lean" / "LibA" / "Sub").mkdir(parents=True)
         (t / "lean" / "LibA" / "Sub" / "M.lean").write_text("")
         (t / "lean" / "LibB").mkdir()
         expect("modules_known", modules(t / "lean", ["LibA"]), ["LibA.Sub.M"])
         expect("modules_unknown_root", setup_fails(lambda: modules(t / "lean", ["LibA", "NoSuchLib"])), True)
         expect("modules_empty_root", setup_fails(lambda: modules(t / "lean", ["LibA", "LibB"])), True)
-        # 4. Hand-list discovery: every *.lean file of the directory counts, a new file needs no gate change.
+        # The hand-list discovery: each *.lean file of the directory counts. A new file needs no change of the gate.
         d = t / "lists"
         expect("lists_no_dir", setup_fails(lambda: list_files(d)), True)
         d.mkdir()
@@ -259,7 +266,7 @@ def selftest():
         r = check(rows, h, hand_names(d))
         expect("lists_planted_missing", (r["verdict"], r["hand_list_missing"]), ("FAIL", ["Lib.planted"]))
 
-    # 5. The hand lists of the tree. The set can be empty: then the selftest says so, and `run` and `check` stop (exit 2).
+    # The hand lists of the tree. If the set is empty, the self-test reports it, and `run` and `check` stop with exit status 2.
     real_lists = setup_fails(lambda: list_files(LIST_DIR)) is False
     names = hand_names() if real_lists else []
     if real_lists and (not names or any(" " in n for n in names)):

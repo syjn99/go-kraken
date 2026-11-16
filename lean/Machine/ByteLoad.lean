@@ -1,9 +1,10 @@
 import Machine.Step
 
 /-!
-# A one-byte load from inside a separated block
+# A load of one byte from inside a separate block
 
-New in go-kraken. A loop that reads `buf[i]` loads one byte from the middle of the block `buf`.
+This file is not in the reference.
+A loop that reads `buf[i]` loads one byte from the middle of the block `buf`.
 The lemma splits the block around byte `i` and applies `load_step_at`.
 -/
 

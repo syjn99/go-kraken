@@ -1,12 +1,13 @@
--- Source: reference commit 320929dd, fv/kraken/lean/Machine/Labels.lean.
+-- Source: `fv/kraken/lean/Machine/Labels.lean` of methodical-ssz commit 320929dd.
 import Machine.Step
 
 /-!
 # Label resolution in a `Host`
 
-Kraken resolves `label l` to the address of the *first* `.label l` directive of
-the laid-out host program (`Executable.labels`, `findSome?`), or `-1`.
-`label_eq_addrOf` turns that into `Host.addrOf j` for the first occurrence `j`.
+Kraken resolves `label l` to the address of the first `.label l` directive of the host program after layout.
+The functions are `Executable.labels` and `findSome?`.
+If no such directive exists, the address is `-1`.
+`label_eq_addrOf` changes that address into `Host.addrOf j` for the first occurrence `j`.
 -/
 
 namespace Machine
@@ -45,8 +46,8 @@ theorem label_eq_addrOf {l : Label} {j : Nat} (hj : Host.prog[j]? = some (.label
       simp only [ne_eq, Option.some.injEq] at this
       simp [this]
 
-/-- A label inside a fragment at index `k`, at offset `j`, with no earlier occurrence
-in the fragment or in the host program before `k`. -/
+/-- A label at offset `j` in a code fragment at index `k`.
+The label does not occur earlier in the fragment, or in the host program before `k`. -/
 theorem label_in_fragment {p : Program} {k j : Nat} {l : Label} (hk : p.IsInfixAt Host.prog k)
     (hj : p[j]? = some (.label l)) (hin : ∀ i < j, p[i]? ≠ some (.label l))
     (hpre : ∀ i < k, Host.prog[i]? ≠ some (.label l)) : label l = Host.addrOf (k + j) := by
@@ -66,8 +67,8 @@ theorem label_in_fragment {p : Program} {k j : Nat} {l : Label} (hk : p.IsInfixA
       have := hin (i - k) (by omega)
       rwa [List.getElem?_eq_getElem (by omega)] at this
 
-/-- No label of fragment `p` occurs in the host program before index `k`
-(a link-level fact: assembly labels are unique). -/
+/-- No label of the code fragment `p` occurs in the host program before index `k`.
+The link check shows that each label of the assembly text has one definition. -/
 def LabelsFresh (p : Program) (k : Nat) : Prop :=
   ∀ i < k, ∀ l, Host.prog[i]? = some (Kraken.Directive.label l) → Kraken.Directive.label l ∉ p
 
@@ -76,7 +77,7 @@ theorem label_at {p : Program} {k : Nat} (hk : p.IsInfixAt Host.prog k) (hf : La
     label l = Host.addrOf (k + j) :=
   label_in_fragment hk hj hin (fun i hi h => hf i hi l h (List.mem_of_getElem? hj))
 
-/-- `label_at` with the "first in the fragment" side condition as a list check. -/
+/-- `label_at` with a list check for the condition that the label is the first in the fragment. -/
 theorem label_at' {p : Program} {k : Nat} (hk : p.IsInfixAt Host.prog k) (hf : LabelsFresh p k)
     {j : Nat} {l : Label} (hj : p[j]? = some (.label l))
     (hin : @List.contains _ instBEqOfDecidableEq (p.take j) (Kraken.Directive.label l) = false) :
@@ -94,9 +95,9 @@ theorem label_at' {p : Program} {k : Nat} (hk : p.IsInfixAt Host.prog k) (hf : L
 
 end Machine
 
-/-- Rewrite `label l` (the label at directive `j` of fragment `prog`) to `Host.addrOf (k + j)`.
-Side conditions are computed by `simp` (not `decide`/`rfl`, whose proof terms
-exceed the recursion limit for long fragments). -/
+/-- Rewrite `label l` to `Host.addrOf (k + j)`, for the label at directive `j` of the code fragment `prog`.
+`simp` proves the side conditions.
+The proof terms of `decide` and `rfl` go past the recursion limit for long fragments. -/
 macro "label_address " hk:term:max hf:term:max prog:ident j:num : tactic => `(tactic| (
   have hkl := Machine.label_at' $hk $hf (j := $j)
     (by simp only [$prog:ident, List.getElem?_cons_succ, List.getElem?_cons_zero]; rfl)

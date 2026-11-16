@@ -1,9 +1,9 @@
 #!/bin/sh
-# Build the ELF of one target in Docker and write its link inputs.
+# Build the ELF of one target in Docker, and write the inputs of the link check.
 # Usage: sh tools/build_target.sh <manifest>
 # The output directory is <directory of the manifest>/build.
 # The script builds the ELF two times in two containers. The two ELF files must be equal.
-# It stops with a non-zero exit status on any error or difference.
+# On an error or a difference, the script stops with an exit status that is not 0.
 set -eu
 
 if [ "$#" -ne 1 ]; then
@@ -14,7 +14,7 @@ tools=$(cd "$(dirname "$0")" && pwd)
 mdir=$(cd "$(dirname "$1")" && pwd)
 manifest="$mdir/$(basename "$1")"
 
-# Read and validate the manifest. The Python program prints shell assignments.
+# Read and check the manifest. The Python program prints shell assignments.
 settings=$(python3 -I -B - "$manifest" <<'EOF'
 import json
 import os
@@ -39,8 +39,8 @@ def need(cond, msg):
 WORD = re.compile(r"[A-Za-z0-9_.,=/+-]+")
 need(m.get("schema") == "go-kraken.target/1", "schema is not go-kraken.target/1")
 name = m.get("name")
-need(isinstance(name, str) and re.fullmatch(r"[a-z0-9][a-z0-9_-]*", name), "bad name")
-need(os.path.basename(os.path.dirname(os.path.abspath(path))) == name, "the manifest directory name is not the name")
+need(isinstance(name, str) and re.fullmatch(r"[a-z0-9][a-z0-9_-]*", name), "the name is not valid")
+need(os.path.basename(os.path.dirname(os.path.abspath(path))) == name, "the name of the manifest directory is not the name")
 src = m.get("source")
 need(isinstance(src, dict), "source is not an object")
 if src.get("kind") == "go-standard-library":
@@ -48,39 +48,39 @@ if src.get("kind") == "go-standard-library":
 elif src.get("kind") == "go-module":
     for k in ("module", "version", "go_sum"):
         need(isinstance(src.get(k), str) and src[k], f"source: no {k}")
-    fail("source kind go-module: this script cannot build a module source yet", 2)
+    fail("source kind go-module: this script cannot build a module source", 2)
 else:
     fail(f"source: unknown kind {src.get('kind')!r}")
 go = m.get("go")
 need(isinstance(go, dict), "go is not an object")
-need(isinstance(go.get("version"), str) and re.fullmatch(r"[0-9]+\.[0-9]+(\.[0-9]+)?", go["version"]), "go: bad version")
+need(isinstance(go.get("version"), str) and re.fullmatch(r"[0-9]+\.[0-9]+(\.[0-9]+)?", go["version"]), "go: the version is not valid")
 need(isinstance(go.get("docker_image"), str) and re.fullmatch(r"[a-z0-9./_-]+:[A-Za-z0-9._-]+@sha256:[0-9a-f]{64}",
-                                                           go["docker_image"]), "go: docker_image is not pinned by a digest")
+                                                           go["docker_image"]), "go: docker_image has no digest")
 env = go.get("env")
 need(isinstance(env, dict) and all(re.fullmatch(r"[A-Z][A-Z0-9_]*", k) and isinstance(v, str) and WORD.fullmatch(v)
-                                   for k, v in env.items()), "go: bad env")
+                                   for k, v in env.items()), "go: the env is not valid")
 for k in ("flags", "tags"):
-    need(isinstance(go.get(k), list) and all(isinstance(x, str) and WORD.fullmatch(x) for x in go[k]), f"go: bad {k}")
+    need(isinstance(go.get(k), list) and all(isinstance(x, str) and WORD.fullmatch(x) for x in go[k]), f"go: the {k} are not valid")
 main = m.get("main_package")
 need(isinstance(main, str) and main and not os.path.isabs(main), "main_package is not a relative path")
 mainabs = os.path.realpath(os.path.join(os.path.dirname(path), main))
 for f in ("go.mod", "main.go"):
     need(os.path.isfile(os.path.join(mainabs, f)), f"main_package: no {f}")
 fns = m.get("functions")
-need(isinstance(fns, list) and fns, "functions is empty")
+need(isinstance(fns, list) and fns, "the function list is empty")
 for f in fns:
     need(isinstance(f, dict) and isinstance(f.get("symbol"), str) and isinstance(f.get("lean_constant"), str),
-         "a function needs symbol and lean_constant")
+         "a function needs a symbol and a lean_constant")
 syms = [f["symbol"] for f in fns]
-need(len(set(syms)) == len(syms), "a function symbol occurs twice")
+need(len(set(syms)) == len(syms), "a function symbol occurs two times")
 need(isinstance(m.get("runtime_callees"), list), "runtime_callees is not a list")
 items = m.get("data_items")
 need(isinstance(items, list), "data_items is not a list")
 for d in items:
     need(isinstance(d, dict) and all(isinstance(d.get(k), str) for k in ("id", "symbol", "kind")),
-         "a data item needs id, symbol and kind")
+         "a data item needs an id, a symbol and a kind")
 if items:
-    fail("data_items: this script has no data extractor yet", 2)
+    fail("data_items: this script has no data extractor", 2)
 out = {
     "NAME": name,
     "IMAGE": go["docker_image"],
@@ -107,8 +107,8 @@ if [ -n "$TAGS" ]; then
   tagarg="-tags=$TAGS"
 fi
 
-# One container per call: no network, a 4 GiB memory limit, a fresh build cache.
-# $ENV_ARGS, $FLAGS and $tagarg hold no spaces inside a word (the manifest check makes sure).
+# One container for each call: no network, a memory limit of 4 GiB and an empty build cache.
+# $ENV_ARGS, $FLAGS and $tagarg have no space inside a word. The manifest check makes sure of this.
 go_run() {
   out=$1
   shift
@@ -129,7 +129,7 @@ go_run "$second" go build $FLAGS $tagarg -o /out/target-amd64 .
 elf_sha=$(sha "$build/target-amd64")
 second_sha=$(sha "$second/target-amd64")
 if [ "$elf_sha" != "$second_sha" ]; then
-  echo "the two builds differ: $elf_sha and $second_sha" >&2
+  echo "the two builds are different: $elf_sha and $second_sha" >&2
   echo "the second ELF stays in $second" >&2
   exit 1
 fi
@@ -140,21 +140,21 @@ version=$(go_run "$build" go version)
 case "$version" in
   "go version go$GO_VERSION "*) ;;
   *)
-    echo "the image has another Go version: $version (manifest: $GO_VERSION)" >&2
+    echo "the image has a different Go version: $version (manifest: $GO_VERSION)" >&2
     exit 1
     ;;
 esac
 go_run "$build" go tool objdump -gnu -s "$REGEX" /out/target-amd64 > "$build/target.objdump"
 go_run "$build" go tool nm -size -sort address /out/target-amd64 > "$build/target-amd64.nm"
 
-# The disassembly must hold each function of the manifest exactly once, and no other function.
+# The disassembly must hold each function of the manifest one time, and no other function.
 python3 -I -B - "$build/target.objdump" "$SYMBOLS" <<'EOF'
 import sys
 
 got = [l.split()[1].removesuffix("(SB)") for l in open(sys.argv[1]) if l.startswith("TEXT ")]
 want = sys.argv[2].split("\n")
 if sorted(got) != sorted(want):
-    sys.exit(f"objdump functions {got} are not the manifest functions {want}")
+    sys.exit(f"the objdump functions {got} are not the manifest functions {want}")
 EOF
 
 {

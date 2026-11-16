@@ -1,34 +1,36 @@
--- Source: methodical-ssz commit 320929dd, .claude/skills/maintaining-methodical-fv/scripts/decl_dump.lean (unchanged below this line).
+-- Source: `.claude/skills/maintaining-methodical-fv/scripts/decl_dump.lean` of methodical-ssz commit 320929dd.
+-- This repository changed only the comments.
 import Lean
 
 /-!
-# decl_dump: one stable record per declaration (core `Lean` only)
+# Declaration dump: one stable record for each declaration
 
-Usage (`lean` is a heavy command: run it through the heavy-job gate):
+The program uses only the core `Lean` library.
+`tools/axioms_gate.py` runs it. A run is a heavy Lean job.
 
-    LEAN_PATH=<dir with the .olean files> lean --run decl_dump.lean [--root R]... Module...
+    LEAN_PATH=<directory of the .olean files> lean --run decl_dump.lean [--root R]... Module...
 
-It imports the given modules. It prints one tab-separated line per
-declaration whose defining module has one of the roots (default: the roots of
-the given modules), sorted by name:
+The program imports the given modules.
+It prints one line for each declaration whose module has one of the roots.
+Without `--root`, the roots are the roots of the given modules.
+Tabs separate the fields of a line. The lines are in the order of the names:
 
     name  kind  type-hash  value-hash  axioms
 
-* `type-hash`: `Expr.hash` of the declared type, printed as 16 hex digits.
-* `value-hash`: `Expr.hash` of the value for `def` and `opaque`; `-` for every
-  other kind. Theorem proofs are not hashed. A changed proof shows up only if
-  it changes the axiom set.
-* `axioms`: the sorted result of `Lean.collectAxioms`, comma separated, `-` if
-  empty.
+* `type-hash`: the `Expr.hash` of the declared type, as 16 hexadecimal digits.
+* `value-hash`: the `Expr.hash` of the value of a `def` or an `opaque`. For each other kind, the field is `-`.
+  The program does not calculate a hash of a theorem proof. A changed proof is visible only if it changes the axiom set.
+* `axioms`: the result of `Lean.collectAxioms` in order, with commas between the names. If the set is empty, the field is `-`.
 
-The first line is a header with the Lean version and git hash.
-`decl_drift.py` refuses to compare dumps from different Lean builds.
+The first line is a header with the Lean version and the Git hash.
 
-Limits: `Expr.hash` is a structural hash; on the tested toolchain only 32 bits
-are used (the upper 8 hex digits are 0). It ignores binder names and
-binder kind (explicit, implicit, instance-implicit), and it is not a definitional-equivalence check. It is comparable only between dumps
-made by the same Lean build. Exit 0 on success, 2 on a usage error or when no
-declaration matched.
+Limits: `Expr.hash` is a structural hash.
+On the tested toolchain, the hash has only 32 bits, and the upper 8 hexadecimal digits are 0.
+The hash ignores the names of binders and their kind (explicit, implicit, instance-implicit).
+It is not a check of definitional equality.
+Compare two dumps only when the same Lean build made them.
+The exit status is 0 on success.
+It is 2 on a usage error, or when no declaration has one of the roots.
 -/
 
 open Lean

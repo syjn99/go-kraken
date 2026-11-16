@@ -3,7 +3,7 @@ import Uvarint.DecodeLoop
 /-!
 # Main theorem of `encoding/binary.Uvarint`
 
-The entry, directives 0 to 5 of `Uvarint.Code.uvarint`:
+The entry is directives 0 to 5 of `Uvarint.Code.uvarint`:
 
     encoding_binary.Uvarint:
       mov %rax,0x8(%rsp)    // spill the buffer pointer
@@ -12,7 +12,7 @@ The entry, directives 0 to 5 of `Uvarint.Code.uvarint`:
       xor %esi,%esi         // sum = 0
       jmp L_33              // loop head
 
-Then `Decode.loop` at index 0 gives the conclusion.
+Then `Decode.loop` at the index 0 gives the conclusion.
 -/
 
 open Machine Uvarint.Code
@@ -21,7 +21,7 @@ variable [Host]
 namespace Uvarint
 
 /-- **Main theorem of `encoding/binary.Uvarint`**: the machine code returns the machine form of
-`Uvarint.decode buf` for every buffer below `2 ^ 63` bytes. The statement is `Decode.result_statement`. -/
+`Uvarint.decode buf` for each buffer below `2 ^ 63` bytes. The statement is `Decode.result_statement`. -/
 theorem Decode.result : Decode.result_statement := by
   intro k hk hf s ra buf spill hspill R h_mem hlength hbound
   obtain ⟨⟨rax, rbx, rcx, rdx, rsi, rdi, rsp, rbp, r8, r9, r10, r11, r12, r13, r14, r15⟩, zmms, flags, mem⟩ := s

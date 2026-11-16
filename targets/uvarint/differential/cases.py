@@ -3,8 +3,8 @@
 
 Usage: python3 -I -B cases.py > cases.txt
 Each line is one input buffer as lowercase hexadecimal. The line `-` is the empty buffer.
-The list is the same on every run and on every Python version. It uses no `random` module.
-A buffer that occurs again is written only once, at its first place.
+The list is the same on each run and on each Python version. The script does not use the `random` module.
+The script writes each buffer only once, at its first place.
 """
 import sys
 
@@ -32,10 +32,10 @@ class Lcg:
 
 def cases():
     out = [[]]
-    # Every length from 1 to 12, all bytes 0x80, and all bytes 0xff.
+    # Each length from 1 to 12, with all bytes 0x80, and with all bytes 0xff.
     for n in range(1, 13):
         out += [[0x80] * n, [0xFF] * n]
-    # Powers of two and one less, with and without two trailing bytes, and each cut by one byte.
+    # Powers of two and the numbers one less, with and without two more bytes. Each buffer also without its last byte.
     for k in range(64):
         for v in (2 ** k, 2 ** k - 1):
             for buf in (encode(v), encode(v) + [0x01, 0x80]):
@@ -51,8 +51,8 @@ def cases():
     # Non-canonical encodings: zero groups at the end.
     out += [[0x80, 0x00], [0xFF, 0x00], [0x80, 0x80, 0x00], [0x81, 0x80, 0x00], [0xFF, 0x80, 0x00],
             [0x80] * 8 + [0x00], [0x80] * 9 + [0x00], [0xFF] * 8 + [0x80, 0x00], [0x80, 0x00, 0x00]]
-    # Pseudo-random buffers of length 0 to 12. Three of four bytes get the continuation bit,
-    # so that most buffers reach the longer paths of the decoder.
+    # Pseudo-random buffers of length 0 to 12. Three of four bytes get the continuation bit.
+    # Thus most buffers get to the longer paths of the decoder.
     g = Lcg(20261116)
     for _ in range(400):
         n = g.next() % 13

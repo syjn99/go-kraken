@@ -1,15 +1,14 @@
 module
--- Source: reference commit 320929dd, fv/kraken/lean/Machine/Include.lean (`data_include` left out).
+-- Source: `fv/kraken/lean/Machine/Include.lean` of methodical-ssz commit 320929dd, without `data_include`.
 public import Kraken.X64.Syntax
 public meta import Kraken.X64.Parser
 public meta import Lean
 
 /-!
-`include_x64_code "file.S"`: elaborate a file with Kraken's runtime parser and
-turn the result into a term with the `Lean.ToExpr` instances that Kraken derives
-for `Directive`.
+`include_x64_code "file.S"` parses a file with the runtime parser of Kraken.
+It changes the result into a term with the `Lean.ToExpr` instances that Kraken derives for `Directive`.
 
-Our wrapper, not a Kraken change.
+This command is part of this repository. It is not a change of Kraken.
 -/
 
 open Lean Elab Term

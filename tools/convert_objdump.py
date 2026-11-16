@@ -1,27 +1,31 @@
 #!/usr/bin/env python3
-# Source: methodical-ssz commit 320929dd, fv/kraken/link/convert_objdump.py (SSZ-specific parts removed).
-"""Convert `go tool objdump -gnu` output into labeled AT&T assembly for Kraken.
+# Source: fv/kraken/link/convert_objdump.py of methodical-ssz commit 320929dd, without the parts that are specific to SSZ.
+"""Convert the output of `go tool objdump -gnu` into labeled AT&T assembly for Kraken.
 
-Usage: convert_objdump.py <objdump> <nm> <outdir> [--norm]
+Usage: convert_objdump.py <objdump> <nm> <output directory> [--norm]
 
-<objdump> is `go tool objdump -gnu -s <regexp> <elf>` output. <nm> is
-`go tool nm -size -sort address <elf>` output. One `<fn>.S` file is written
-per function, plus `all.S` (all functions in address order).
+<objdump> is the output of `go tool objdump -gnu -s <regexp> <elf>`.
+<nm> is the output of `go tool nm -size -sort address <elf>`.
+The converter writes one `<fn>.S` file for each function, and `all.S` with all functions in address order.
 
-The converter changes only what Kraken cannot take from objdump directly:
-- absolute jump and call targets become labels: `L_<fn>_<hexoff>` inside the
-  function, the symbol name outside it;
-- `disp(%rip)` becomes `sym+off(%rip)` for the symbol that holds the target;
-- in symbol names, `(*T)` becomes `T` and characters outside
-  `[A-Za-z0-9_.]` become `_` (Kraken identifier token).
-With --norm it also rewrites padding forms (table NORM) to `nop` (a gap in the
-Kraken parser, not a semantic change: Kraken layouts are abstract, so the byte
-length of a nop is not used; check.py compares the original bytes), and drops
-the zero index `,%riz,1)` of a SIB operand (RIZ; same address).
+The converter changes only the items that Kraken cannot read from objdump directly:
+- An absolute jump or call target becomes a label. Inside the function, the label is `L_<fn>_<hexoff>`.
+  Outside the function, the label is the symbol name.
+- `disp(%rip)` becomes `sym+off(%rip)`, for the symbol that holds the target.
+- In a symbol name, `(*T)` becomes `T`. Each character outside `[A-Za-z0-9_.]` becomes `_`.
+  Thus the name is one identifier token of Kraken.
+With --norm, the converter also makes these changes:
+- Each padding form of the table NORM becomes `nop`. The Kraken parser does not know these forms.
+  This is not a change of the semantics: a Kraken layout is abstract and does not use the byte length of a nop.
+  The link check compares the original bytes.
+- The converter removes the zero index `,%riz,1)` of a SIB operand (RIZ). The address does not change.
+- A negative 32-bit displacement gets its signed form (DISP32).
 
-The converter fails (exit status 1) on: an instruction line without the GNU
-form (`// ...`), an address gap between instructions, a branch into the middle
-of an instruction, and two symbol names that sanitize to the same name.
+The converter fails with exit status 1 on these inputs:
+- an instruction line without the GNU form (`// ...`),
+- an address gap between two instructions,
+- a branch into the middle of an instruction,
+- two symbol names that have the same clean name.
 """
 import re
 import sys
@@ -30,16 +34,16 @@ CLEANED = {}
 
 
 def short(name):
-    """The sanitized form of a symbol name. link_check.py uses it for every symbol of the ELF."""
+    """The clean form of a symbol name. link_check.py uses it for each symbol of the ELF."""
     out = re.sub(r"\(\*(\w+)\)", r"\1", name)  # (*T) -> T
     return re.sub(r"[^A-Za-z0-9_.]", "_", out)
 
 
 def clean(name):
-    """Sanitize a symbol name; fail if two names map to one."""
+    """The clean form of a symbol name. Fail if two names have the same clean form."""
     out = short(name)
     if CLEANED.setdefault(out, name) != name:
-        raise SystemExit(f"name collision: {name!r} and {CLEANED[out]!r} both become {out!r}")
+        raise SystemExit(f"two names have the same clean name: {name!r} and {CLEANED[out]!r} both become {out!r}")
     return out
 
 
@@ -49,27 +53,27 @@ def read_nm(path):
         p = line.split()
         if len(p) >= 4:
             syms.append((int(p[0], 16), int(p[1]), p[3]))
-    # Sort so that ties at one address (e.g. `runtime.types` and `type:*`) do
-    # not depend on the order go nm prints them in.
+    # Sort the symbols. Then the order of two symbols at one address (for example `runtime.types` and `type:*`)
+    # does not depend on the order of the go nm output.
     return sorted(syms)
 
 
 def sym_at(syms, addr):
-    """Symbol whose [start, start+size) holds addr, as (name, offset)."""
+    """The symbol whose range [start, start+size) holds addr, as (name, offset)."""
     best, near, exact = None, None, None
     for start, size, name in syms:
         if start == addr:
-            exact = (name, 0)  # last of the sorted ties: stable across nm orders
+            exact = (name, 0)  # the last symbol at this address in the sorted order, for each nm order
         if start <= addr < start + max(size, 1):
             best = (name, addr - start)
         if start <= addr:
             near = (name, addr - start)
-    # ponytail: Go nm lists type descriptors as one size-0 group (`type:*`), so
-    # an address inside it is named by the nearest preceding symbol + offset.
+    # Go nm lists the type descriptors as one group of size 0 (`type:*`).
+    # Thus the name of an address inside the group is the nearest symbol before it, with an offset.
     if exact:
         return exact
     if best is None and near is None:
-        raise SystemExit(f"no symbol at {addr:#x}")
+        raise SystemExit(f"no symbol holds the address {addr:#x}")
     return best or near
 
 
@@ -84,11 +88,11 @@ def read_objdump(path):
             continue
         m = re.match(r"\s+\S+\s+0x([0-9a-f]+)\s+([0-9a-f]+)\s+.*?// (.*)$", line)
         if not m or cur is None:
-            raise SystemExit(f"unrecognized objdump line (no GNU form?): {line.rstrip()!r}")
+            raise SystemExit(f"the objdump line does not have the GNU form with a // part: {line.rstrip()!r}")
         att = re.sub(r"\s+", " ", m.group(3)).strip()
         a, n = int(m.group(1), 16), len(m.group(2)) // 2
         if cur["ins"] and cur["ins"][-1][0] + cur["ins"][-1][1] != a:
-            raise SystemExit(f"address gap before {a:#x} in {cur['name']}")
+            raise SystemExit(f"{cur['name']} has an address gap before {a:#x}")
         cur["ins"].append((a, n, att))
     return fns
 
@@ -98,15 +102,18 @@ RIP = re.compile(r"(-?0x[0-9a-f]+|-?\d+)\(%rip\)")
 NORM = {"nopl (%rax)": "nop", "data16 nop": "nop", "nopw 0x0(%rax,%rax,1)": "nop",
         "nopw (%rax,%rax,1)": "nop", "nopl 0x0(%rax)": "nop", "nopl 0x0(%rax,%rax,1)": "nop", "nopl (%rax,%rax,1)": "nop",
         "nopw %cs:0x0(%rax,%rax,1)": "nop", "data16 nopw %cs:0x0(%rax,%rax,1)": "nop", "xchg %ax,%ax": "nop"}
-# `%riz` (Go 1.26.10): GNU objdump prints a SIB byte without an index register as index
-# `%riz` (for example `0x10(%r12,%riz,1)`: base r12 needs a SIB byte). The index is zero, so the
-# address is `0x10(%r12)`. Kraken's parser has no `riz` register. Same address, same bytes (check.py (d)).
+# `%riz` (Go 1.26.10): GNU objdump prints a SIB byte without an index register with the index `%riz`.
+# An example is `0x10(%r12,%riz,1)`, because the base r12 needs a SIB byte. The index is zero.
+# Thus the address is `0x10(%r12)`. The Kraken parser has no `riz` register.
+# The address and the bytes do not change. The reassembly of the link check compares the bytes.
 RIZ = re.compile(r",%riz,1\)")
-# User-approved fix: `go tool objdump -gnu` prints a negative 32-bit memory displacement as an
-# unsigned 8-digit hex number (`lea 0xffffff1c(%rdi),%rdx` for -228). x86-64 sign-extends disp32, but Kraken's parser
-# reads the token as +4294967068 and clang rejects it. Under --norm such a displacement (exactly 8 hex digits, top bit
-# set, directly followed by `(%`, not an immediate `$0x...`, not `%rip`) is written in its signed form `-0xe4(%rdi)`.
-# Same address, same bytes: check.py (d) reassembles the line and compares it with the ELF.
+# `go tool objdump -gnu` prints a negative 32-bit memory displacement as an unsigned hexadecimal number of 8 digits.
+# An example is `lea 0xffffff1c(%rdi),%rdx` for -228. x86-64 extends disp32 with its sign.
+# The Kraken parser reads the token as +4294967068, and clang rejects it.
+# With --norm, the converter writes such a displacement in its signed form `-0xe4(%rdi)`.
+# Such a displacement has exactly 8 hexadecimal digits, has the top bit set, and is directly before `(%`.
+# It is not an immediate `$0x...` and not relative to `%rip`.
+# The address and the bytes do not change. The reassembly of the link check compares the line with the ELF.
 DISP32 = re.compile(r"(?<![\w$\-])0x([89a-f][0-9a-f]{7})(?=\(%(?!rip))")
 
 
@@ -127,13 +134,13 @@ def convert(fn, syms, norm):
             t = int(m.group(2), 16)
             if lo <= t < hi:
                 if t not in starts:
-                    raise SystemExit(f"branch into the middle of an instruction: {t:#x} in {name}")
+                    raise SystemExit(f"{name} has a branch into the middle of an instruction: {t:#x}")
                 targets.add(t)
                 att = f"{m.group(1)} {lab(t)}"
             else:
                 s, off = sym_at(syms, t)
                 if off:
-                    raise SystemExit(f"branch into the middle of {s}")
+                    raise SystemExit(f"a branch goes into the middle of {s}")
                 att = f"{m.group(1)} {clean(s)}"
         else:
             r = RIP.search(att)
@@ -177,7 +184,7 @@ def selftest():
     for bad in ({"name": "pkg.g", "ins": [(0x100, 2, "jmp 0x101"), (0x102, 1, "retq")]},):
         try:
             convert(bad, syms, False)
-            raise AssertionError("mid-instruction branch accepted")
+            raise AssertionError("the converter accepted a branch into the middle of an instruction")
         except SystemExit:
             pass
     riz = {"name": "pkg.r", "ins": [(0x100, 6, "mov 0x10(%r12,%riz,1),%r12"), (0x106, 1, "retq")]}
@@ -195,7 +202,7 @@ def selftest():
     clean("pkg.h[uint8]")
     try:
         clean("pkg.h_uint8_")
-        raise AssertionError("name collision accepted")
+        raise AssertionError("the converter accepted two names with the same clean name")
     except SystemExit:
         pass
     CLEANED.clear()

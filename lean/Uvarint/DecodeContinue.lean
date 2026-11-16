@@ -20,7 +20,7 @@ Directives 6 to 18 of `Uvarint.Code.uvarint`, for a byte `b` with the top bit se
          mov %r8,%rcx
          mov %r9,%rdx
 
-The code continues at the loop head (directive 19). The lemmas hold for every final condition `post`.
+The code continues at the loop head, which is directive 19. The lemmas hold for each final condition `post`.
 -/
 
 open Machine Uvarint.Code

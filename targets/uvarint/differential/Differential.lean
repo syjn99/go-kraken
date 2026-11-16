@@ -1,9 +1,9 @@
 /-
 Differential run of the uvarint specification.
-Run from lean/: `lake env lean --run <this file> <case list>`.
-For each case line it prints the case as written, then x and n.
+Run this file from the directory `lean/` with `lake env lean --run <this file> <case list>`.
+For each case line, the program prints the case as written, then x and n.
 The line `-` is the empty buffer.
-The mapping from a result to x and n is written here again on purpose.
+This file writes the mapping from a result to x and n again on purpose.
 It does not use `Uvarint.Result.machineForm`.
 -/
 import Uvarint.Spec

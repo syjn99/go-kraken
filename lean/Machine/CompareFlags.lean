@@ -3,8 +3,9 @@ import Machine.Step
 /-!
 # Branch conditions after `cmp`
 
-New in go-kraken. Kraken computes `cmp b, a` as the flags of `a - b`.
-Each lemma turns one condition code of these flags into a comparison of the operands.
+This file is not in the reference.
+Kraken calculates `cmp b, a` as the flags of `a - b`.
+Each lemma changes one condition code of these flags into a comparison of the operands.
 The operands are free, so the lemmas hold at every width.
 -/
 
@@ -37,7 +38,7 @@ theorem sub_zero_beq {w : Nat} (a b : BitVec w) : ((a - b) == BitVec.zero w) = d
       exact this.symm
     simp [BitVec.zero, h, this]
 
-/-- `cmp b, a; jae` (no carry) is taken when `b ≤ a` (unsigned). -/
+/-- After `cmp b, a`, `jae` (no carry) jumps when `b ≤ a` (unsigned). -/
 theorem flag_nc {w : Nat} (a b : BitVec w) (af of' : Bool) :
     CondCode.nc.interp (StatusFlags.from_result (a - b)
       { cf := BitVec.unsigned (a - b) != a.unsigned - b.unsigned, af := af, of := of' })
@@ -45,17 +46,17 @@ theorem flag_nc {w : Nat} (a b : BitVec w) (af of' : Bool) :
   simp only [CondCode.interp, StatusFlags.from_result, sub_borrow]
   by_cases h : b.toNat ≤ a.toNat <;> simp [h] <;> omega
 
-/-- `cmp b, a; je` is taken when `a = b`. -/
+/-- After `cmp b, a`, `je` jumps when `a = b`. -/
 theorem flag_z {w : Nat} (a b : BitVec w) (f : StatusFlags.from_result.Remaining) :
     CondCode.z.interp (StatusFlags.from_result (a - b) f) = decide (a = b) := by
   simp only [CondCode.interp, StatusFlags.from_result, sub_zero_beq]
 
-/-- `cmp b, a; jne` is taken when `a ≠ b`. -/
+/-- After `cmp b, a`, `jne` jumps when `a ≠ b`. -/
 theorem flag_nz {w : Nat} (a b : BitVec w) (f : StatusFlags.from_result.Remaining) :
     CondCode.nz.interp (StatusFlags.from_result (a - b) f) = !decide (a = b) := by
   simp only [CondCode.interp, StatusFlags.from_result, sub_zero_beq]
 
-/-- `cmp b, a; jbe` is taken when `a ≤ b` (unsigned). -/
+/-- After `cmp b, a`, `jbe` jumps when `a ≤ b` (unsigned). -/
 theorem flag_be {w : Nat} (a b : BitVec w) (af of' : Bool) :
     CondCode.be.interp (StatusFlags.from_result (a - b)
       { cf := BitVec.unsigned (a - b) != a.unsigned - b.unsigned, af := af, of := of' })

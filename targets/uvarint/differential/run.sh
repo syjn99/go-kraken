@@ -1,13 +1,13 @@
 #!/bin/sh
 # Differential run of the uvarint target: Go binary.Uvarint against the Lean Uvarint.decode.
-# Usage: sh targets/uvarint/differential/run.sh <work-dir>
-# All generated files go into <work-dir>. Nothing is written into the tree.
-# The Go program runs natively in the container. It checks Go semantics, not the amd64 code.
-# Exit 0 only when the two outputs are equal.
+# Usage: sh targets/uvarint/differential/run.sh <work directory>
+# The script writes all its files into the work directory. It writes no file into the tree.
+# The Go program runs on the architecture of the container. It checks the Go semantics, not the amd64 code.
+# The exit status is 0 only when the two outputs are equal.
 set -eu
 
 if [ "$#" -ne 1 ]; then
-  echo "usage: sh run.sh <work-dir>" >&2
+  echo "usage: sh run.sh <work directory>" >&2
   exit 2
 fi
 here=$(cd "$(dirname "$0")" && pwd)
@@ -40,14 +40,14 @@ if [ "$cases" -eq 0 ]; then
   exit 1
 fi
 
-# `lake env lean` does not check that the build is current. The compiled specification must be current.
+# `lake env lean` does not check that the build is current. The build of the specification must be current.
 (cd "$lean_dir" && lake build --no-build Uvarint.Spec) > /dev/null || {
   echo "Uvarint.Spec is not built or not current: run lake build Uvarint first" >&2
   exit 1
 }
 
-# One container per step: no network, a 4 GiB memory limit.
-# GOOS and GOARCH are not set: the program runs on the architecture of the container.
+# One container for each step: no network and a memory limit of 4 GiB.
+# The script does not set GOOS and GOARCH. Thus the program runs on the architecture of the container.
 go_run() {
   docker run --rm -i --network none --memory 4g --user "$(id -u):$(id -g)" \
     -e CGO_ENABLED=0 -e GOTOOLCHAIN=local -e GOFLAGS= -e HOME=/tmp -e GOCACHE=/tmp/go-cache \
@@ -72,7 +72,7 @@ fi
 if cmp "$work/go.txt" "$work/lean.txt"; then
   echo "equal: Go and Lean agree on all $cases cases"
 else
-  echo "the outputs differ. The differing lines:" >&2
+  echo "the outputs are different. These are the different lines:" >&2
   diff "$work/go.txt" "$work/lean.txt" >&2 || true
   exit 1
 fi

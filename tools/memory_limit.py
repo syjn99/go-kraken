@@ -1,20 +1,19 @@
 #!/usr/bin/env python3
-# Source: methodical-ssz commit 320929dd, fv/kraken/gen/tools/memory_limit.py.
-# Changes: without /proc (macOS), session_rss_ps reads the process table from `ps`. The /proc path is unchanged.
+# Source: fv/kraken/gen/tools/memory_limit.py of methodical-ssz commit 320929dd.
+# Changes: without /proc (macOS), session_rss_ps reads the process table from `ps`. The /proc path did not change.
 # killpg also ignores EPERM, which macOS returns for a group that holds only zombies.
-"""Copy of an earlier memory watchdog (not in this tree; that file is not edited).
-Change against the original: a per-process trigger no longer inflates the reported
-session peak (it used to set total = cap + 1 and add the other processes); it sets
-its own flag and the reported peak_session_rss is the true anonymous session sum.
+"""Memory limit for one command.
 
-Run a command in its own session; every 0.1 s sum the
-anonymous RSS (RssAnon) of all processes in that session; if the sum exceeds
-the cap, or (with --per-proc) one process's full VmRSS exceeds its cap, SIGKILL
-the whole session and exit 125. Prints the peaks at the end.
+The tool runs a command in its own session.
+Each 0.1 s, it adds the anonymous RSS (RssAnon) of all processes in that session.
+If the sum is more than the limit, the tool sends SIGKILL to the whole session and exits with 125.
+With --per-proc, it also does this when the full VmRSS of one process is more than its limit.
+At the end, the tool prints the peak values.
+A trigger of the limit for one process sets its own flag. It does not change the reported session peak.
 
-usage: memory_limit.py <cap_bytes> [--per-proc <bytes>] -- cmd args...
-       --per-proc: also kill the session when one process exceeds <bytes>
-Exit: the child's exit code, or 125 if the cap killed it."""
+Usage: memory_limit.py <limit in bytes> [--per-proc <bytes>] -- command arguments...
+       --per-proc: also kill the session when one process uses more than <bytes>
+Exit status: the exit status of the command, or 125 if the limit killed it."""
 import os
 import signal
 import subprocess
@@ -38,8 +37,8 @@ killed = False
 
 def session_rss_ps():
     """The session sum from `ps`, for a system without /proc (macOS).
-    macOS `ps` prints 0 for the `sess` keyword, so os.getsid gives the session id.
-    `ps` has no anonymous RSS. The session sum therefore adds the full RSS of each process.
+    macOS `ps` prints 0 for the `sess` keyword. Thus os.getsid gives the session id.
+    `ps` has no anonymous RSS. Thus the session sum adds the full RSS of each process.
     This sum also counts shared file pages, so it is larger than or equal to the /proc sum."""
     global ppeak, ptrig
     total = 0
@@ -82,8 +81,8 @@ def session_rss():
                             ptrig = True
                     elif line.startswith("RssAnon:"):  # session total: anonymous memory
                         total += int(line.split()[1]) * 1024
-                        # (shared file pages of mmapped .olean files are counted once per
-                        # process in VmRSS; they are page cache, not what the OOM killer frees)
+                        # VmRSS counts the shared file pages of mapped .olean files one time for each process.
+                        # These pages are page cache. The OOM killer does not free them.
         except (OSError, ValueError, IndexError):
             continue
     return total
@@ -101,7 +100,7 @@ while child.poll() is None:
         break
     time.sleep(0.1)
 child.wait()
-# kill any leftover in the session
+# Kill each process that is still in the session.
 try:
     os.killpg(sid, signal.SIGKILL)
 except (ProcessLookupError, PermissionError):  # macOS: EPERM when the group holds only zombies

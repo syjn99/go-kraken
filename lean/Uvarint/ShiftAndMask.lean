@@ -3,7 +3,7 @@ import Machine.Step
 /-!
 # Shift and byte facts of the `Uvarint` code
 
-The loop shifts the payload of byte `i` left by `7 * i` and joins it to the sum with `or`.
+The loop shifts the payload of byte `i` left by `7 * i` and adds it to the sum with `or`.
 These lemmas give the shift count, the payload values and the `or` as an addition.
 -/
 
@@ -33,8 +33,8 @@ theorem low_seven_toNat (b : UInt8) :
     Nat.shiftRight_zero, e, Nat.and_two_pow_sub_one_eq_mod]
   omega
 
-/-- A value shifted left by `c` and a sum below `2 ^ c` have no common bit.
-So their `or` is their sum, modulo `2 ^ 64`. -/
+/-- A value that a shift moves left by `c`, and a sum below `2 ^ c`, have no common bit.
+Thus their `or` is their sum, modulo `2 ^ 64`. -/
 theorem shiftLeft_or_ofNat (z : BitVec 64) (c sum : Nat) (hsum : sum < 2 ^ c) :
     (z <<< c) ||| BitVec.ofNat 64 sum = BitVec.ofNat 64 (sum + z.toNat * 2 ^ c) := by
   have hand : (z <<< c) &&& BitVec.ofNat 64 sum = 0#64 := by

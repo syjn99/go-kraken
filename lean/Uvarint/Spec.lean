@@ -1,14 +1,14 @@
 /-!
 # Specification of the unsigned variable-length integer decoder
 
-This file is the assumed input of the pilot target. The framework does not prove it. A reviewer reads it.
+This file is the trusted input of the pilot target. The framework does not prove it. A reviewer reads it.
 
 The format is the base-128 encoding of protocol buffers and of Go `encoding/binary`.
 Each byte holds 7 payload bits. The first byte holds the least significant bits.
-A byte with the top bit set says that one more byte follows. A 64-bit value has at most 10 bytes.
+A byte with the top bit set shows that one more byte follows. A 64-bit value has at most 10 bytes.
 
-The three results follow the documentation of `encoding/binary.Uvarint` (Go 1.26.10):
-a value with the number of bytes read, a buffer that is too small, or a value that is larger than 64 bits.
+The three results follow the documentation of `encoding/binary.Uvarint` (Go 1.26.10).
+The results are a value with the number of bytes that the decoder read, a buffer that is too small, and an overflow.
 The definition adds payload groups as natural numbers. It does not use shifts or bit operations.
 -/
 
@@ -20,7 +20,8 @@ inductive Result where
   | value (x : UInt64) (bytesRead : Nat)
   /-- The buffer ends before the last byte of the value. -/
   | incomplete
-  /-- The value is larger than 64 bits. The decoder examined `bytesRead` bytes. -/
+  /-- An overflow after `bytesRead` bytes. The value is larger than 64 bits, or the encoding has more than 10 bytes.
+  For example, ten bytes `0x80` and a byte `0x00` give `overflow 11`, but their value is zero. Go gives the same result. -/
   | overflow (bytesRead : Nat)
   deriving DecidableEq, Repr
 
@@ -28,7 +29,7 @@ inductive Result where
 def maxLength : Nat := 10
 
 /--
-Decode the rest of a buffer. `index` is the number of bytes already read.
+Decode the remaining bytes of a buffer. `index` is the number of bytes that the decoder read before.
 `sum` is the value of their payload groups.
 -/
 def decodeFrom (index : Nat) (sum : Nat) : List UInt8 → Result

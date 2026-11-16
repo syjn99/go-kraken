@@ -1,56 +1,77 @@
 #!/usr/bin/env python3
-# Source: methodical-ssz commit 320929dd, fv/kraken/gen/checks/negative.py (paths changed for this repository).
-"""Negative suite: every mutant must fail inside its designated theorem; every control passes.
+# Source: fv/kraken/gen/checks/negative.py of methodical-ssz commit 320929dd, with the paths of this repository,
+# a port to macOS, and the case fields inline and statement_def.
+"""Negative cases: each mutant must fail inside its designated theorem. Each control must pass.
 
-Usage (run inside one gated job, Lean env, cwd anywhere):
-  negative.py <cases.json> <work-dir> <result.json> [<case-id>...]
-cases.json: list of {"id", "module" (path under lean/, e.g. "Uvarint/DecodeAccept.lean"), "theorem",
-  "kind": "code" | "statement" | "control",
-  code:  "code_definition" (Lean name of the included program, e.g. "Uvarint.Code.uvarint"), "assembly" (path of
-         the .S relative to the repository root, e.g. "targets/uvarint/build/norm/encoding_binary.Uvarint.S"), "old", "new" (one exact
-         instruction line, unique in the file, or at the 1-based "line" of the file)
-  statement:  "old", "new" (exact text, unique inside the theorem statement)
-  control: optional "code_definition"/"assembly" (then an unmutated copy of the .S is included the same way)
-  optional for code/control: "code_namespace" (namespace of the code constant; required when "code_definition"
-  is not a full name);
-  optional for every kind: "mutant_imports" (list of module names, e.g. "Uvarint.Spec"):
-  the mutated copy imports them in addition (the case module is unchanged), so that a mutant can name a declaration
-  of another module;
-  optional for every kind: "inline" (list of module paths under lean/, in import order): the mutant file holds a copy
-  of each module, each in its own `section`, before the case module. The code rename then reaches these copies.
-  Use it for each module between the code module and the case module, so that no helper names the original program;
-  optional for statement: "statement_def" (full name of a `def` in an inlined module): "old" and "new" apply inside
-  that definition, and the case range stays the theorem}
-For each case the mutant Lean file is the module's text up to the end of the designated theorem
-(the next top-level `theorem`/`def`/`end`/`example`/`/--` after it is cut; a `theorem <thm>_kind` that
-directly follows it is kept and belongs to the case range). The case range starts at the first line of the
-theorem's command: the `set_option … in` lines and the doc comment directly above the `theorem` line belong to it
-(Lean reports an error of the whole declaration, for example its heartbeat timeout, at that line). For code cases, a
-new constant `<code namespace>.<code_definition>Mut` that includes the mutated .S copy (absolute path in <work-dir>)
-and every whole-word use of <code_definition> after the imports renamed to it. `lake env lean <file>` runs
-under the memory cap (tools/memory_limit.py) from lean/. A mutant passes the suite when Lean reports an error,
-every error line lies inside the case range, and the FIRST error is neither a resource error nor a wrong_target
-form (a later heartbeat or recursion error after a real first error is kept in "later_resource_error" and does
-not change the class); a control passes when Lean reports no error. Each result has a "class": control_pass, control_fail,
-inside, outside, no_error, killed, abnormal_exit (an exit status other than 0 and 1), mixed_programs (the first error
-names the original program and the mutant program), timeout_wall (CASE_TIMEOUT expired) or timeout_heartbeat (an error line is Lean's
-"(deterministic) timeout") or recursion_limit (an error line is "maximum recursion
-depth has been reached") or wrong_target (the FIRST error is a parse error or an unknown identifier /
-constant, or another parse / name-resolution form listed at WRONG_TARGET: the mutant does not reach its
-target); the resource classes are decided by the FIRST error line (a later resource
-error is kept in "later_resource_error"). Only control_pass and inside are a pass.
-negative.py --reclassify <result.json> [<work-dir>] recomputes the classes of a result file; --selftest checks them.
-negative.py --check-cases <cases.json>... builds the mutant text of each case without Lean.
-"theorem" is the full Lean name or the name as written on the declaration line; the full name selects the namespace
-block when one module holds the same written name twice. Without "code_namespace", a full name in "code_definition" is declared
-with `_root_`.
-On a per-case timeout the whole process tree (memory_limit.py, and lake/lean in its own session) is killed
-and the driver asserts that none survives before the next case; --selftest-timeout checks
-this with a fake child (no Lean). Before the first case, `lake build --no-build <imports of the case modules>`
-must exit 0 (`lake env lean` does not check traces); otherwise no case runs and the exit code is 2.
-The precheck argv and exit code are in "precheck" of <result.json>. <result.json> holds only the cases of this run.
-A <case-id> that matches no case is a usage error: nothing runs and the exit code is 2.
-Writes <result.json> and, per case, <work-dir>/<id>/{mut.lean, mut.S?, diff, log}. Python 3 stdlib only.
+Usage. A run is a Lean job. The working directory does not matter.
+  negative.py <cases.json> <work directory> <result.json> [<case id>...]
+  negative.py --check-cases <cases.json>...        builds the mutant text of each case, without Lean
+  negative.py --reclassify <result.json> [<work directory>]   calculates the classes of a result file again
+  negative.py --selftest                           checks the classifier and the case range
+  negative.py --selftest-timeout                   checks the cleanup after a timeout, with a fake child process
+
+cases.json is a list of cases. Each case has these fields:
+- "id", "module" (a path under lean/, for example "Uvarint/DecodeLoop.lean"), "theorem".
+- "kind": "code", "statement" or "control".
+- For "code": "code_definition" (the Lean name of the included program, for example "uvarint"),
+  "assembly" (the path of the .S file from the repository root), "old" and "new".
+  "old" is one exact instruction line, unique in the file. With "line", "old" is at that line (1-based) of the file.
+- For "statement": "old" and "new", an exact text that is unique inside the theorem statement.
+- For "control": optional "code_definition" and "assembly". Then the mutant file includes an unchanged copy of the .S file.
+- Optional for "code" and "control": "code_namespace", the namespace of the code constant.
+  It is necessary when "code_definition" is not a full name.
+  Without "code_namespace", the runner declares a full name in "code_definition" with `_root_`.
+- Optional for each kind: "mutant_imports", a list of module names. The mutant file also imports them.
+  The case module does not change. Thus a mutant can name a declaration of another module.
+- Optional for each kind: "inline", a list of module paths under lean/, in import order.
+  The mutant file holds a copy of each module, each in its own `section`, before the case module.
+  The code rename then also changes these copies. List each module between the code module and the case module.
+  Then no imported lemma names the original program.
+- Optional for "statement": "statement_def", the full name of a `def` in an inlined module.
+  "old" and "new" then apply inside that definition. The case range stays the theorem.
+
+"theorem" is the full Lean name, or the name as written on the declaration line.
+The full name selects the namespace block when one module holds the same written name two times.
+
+The mutant file of a case is the text of the module up to the end of the designated theorem.
+The next top-level `theorem`, `def`, `end`, `example` or `/--` after the theorem ends the text.
+A `theorem <thm>_kind` directly after the theorem stays, and it is part of the case range.
+The case range starts at the first line of the command of the theorem.
+The `set_option ... in` lines and the doc comment directly above the `theorem` line are part of the command.
+Lean reports an error of the whole declaration at that line, for example a heartbeat timeout.
+For a code case, the runner adds a constant `<code namespace>.<code_definition>Mut`.
+This constant includes the changed copy of the .S file, with its absolute path in the work directory.
+After the imports, the runner renames each whole-word use of <code_definition> to that constant.
+
+The runner runs `lake env lean <file>` from lean/, under the memory limit of tools/memory_limit.py.
+A mutant passes when these conditions are true:
+- Lean reports an error, and each error line is inside the case range.
+- The first error is not a resource error, not a wrong_target form and not a mixed_programs form.
+A later heartbeat or recursion error after a real first error goes into "later_resource_error". It does not change the class.
+A control passes when Lean reports no error.
+
+Each result has a "class":
+- control_pass, control_fail: the result of a control.
+- inside: a pass of a mutant. outside: an error line is outside the case range. no_error: Lean reports no error.
+- killed: the memory limit stopped Lean. timeout_wall: the case time (CASE_TIMEOUT) ended.
+- abnormal_exit: an exit status other than 0 and 1.
+- timeout_heartbeat: the first error is the Lean "(deterministic) timeout".
+- recursion_limit: the first error is "maximum recursion depth has been reached".
+- mixed_programs: the first error names the original program and the mutant program.
+- wrong_target: the first error is a parse error or a name resolution error of the list WRONG_TARGET.
+  Such a mutant does not get to its target.
+Only control_pass and inside are a pass.
+
+After a case timeout, the runner kills the whole process tree.
+This tree is memory_limit.py and lake and lean in their own session.
+The runner makes sure that no process of the tree is alive before the next case.
+Before the first case, `lake build --no-build <imports of the case modules>` must exit with 0.
+`lake env lean` does not check that the build is current. If the check fails, no case runs and the exit status is 2.
+The argument list and the exit status of that check go into "precheck" of <result.json>.
+<result.json> holds only the cases of this run.
+A <case id> that matches no case is a usage error: no case runs and the exit status is 2.
+The runner writes <result.json>. For each case, it writes <work directory>/<id>/ with mut.lean, mut.S, diff and log.
+The tool uses only the Python 3 standard library.
 """
 import difflib
 import json
@@ -70,23 +91,23 @@ CAP = str(6 * 2 ** 30)
 CASE_TIMEOUT = 300  # seconds per case
 HEARTBEAT = "(deterministic) timeout"
 RECDEPTH = "maximum recursion depth has been reached"
-# A first error that is a parse error or a name-resolution error says nothing about the
-# mutated hypothesis or instruction; the mutant does not reach its target. Class wrong_target, never a pass.
-# The list is enumerated from the message strings of the pinned toolchain's sources
-# (Lean/Parser, Lean/ResolveName.lean, Lean/Elab/*: `errorAtSavedPos`, `throwError`, `logError`), not only
-# from observed records. It is matched at the START of the first error message (after `error:` or
-# `error(<kind>):`), case-insensitive:
+# A first error that is a parse error or a name resolution error says nothing about the changed hypothesis
+# or instruction. The mutant does not get to its target. Its class is wrong_target, which is never a pass.
+# The list comes from the message strings in the sources of the pinned toolchain, not only from observed records.
+# The sources are Lean/Parser, Lean/ResolveName.lean and Lean/Elab/* (`errorAtSavedPos`, `throwError`, `logError`).
+# The pattern must match at the start of the first error message, after `error:` or `error(<kind>):`.
+# The match ignores the case of letters:
 #   parse:            unknown tactic | unexpected token/end of input/identifier/command/tactic | expected <x>
 #                     | unknown syntax category | unknown category | unknown parser
 #   name resolution:  unknown identifier/constant/namespace/declaration/universe level/attribute/hypothesis
 #                     /local declaration/alternative name/tag | unknown `grind` attribute
 #                     | Invalid field `f`: The environment does not contain … (and the old lower-case form)
 #                     | ambiguous identifier/namespace/…, possible interpretations
-#   option / case:    Unknown option `o` | Case tag `t` not found (both were classified inside before)
-# THE LIST IS NOT COMPLETE. It covers the forms named above and no others. A first error of another
-# parse or name form that is not listed here still classifies as inside; read the first error of every row.
-# Not included (elaborator-internal invariants, not a parse or user-name error): unknown metavariable,
-# free variable, goal, let-declaration, parameter, local function, function.
+#   option or case:   Unknown option `o` | Case tag `t` not found
+# THE LIST IS NOT COMPLETE. It covers the forms above and no other forms.
+# A first error of a parse or name form that is not in the list gets the class inside. Read the first error of each row.
+# These forms are not in the list, because they are internal errors of the elaborator, not parse or name errors:
+# unknown metavariable, free variable, goal, let-declaration, parameter, local function, function.
 WRONG_TARGET = re.compile(
     r"error(\([\w.]+\))?: "
     r"(unknown (tactic|identifier|constant|namespace|declaration|universe level|attribute|hypothesis"
@@ -105,10 +126,11 @@ DECL_AT = re.compile(r"^(?:private )?(theorem|def) ([^\s:({\[]+)")
 
 
 def find_decl(lines, name, kinds=("theorem",)):
-    """(index, name as written) of the declaration line of `name` in a module. `name` is the full name (the
-    namespace blocks above the line and the written name; `_root_.` handled) or the name as written on the line.
-    A full-name match wins. Exactly one line must match, else ValueError (two blocks of one module can hold the
-    same written name, for example `theorem Decode.accept` of two types)."""
+    """(index, name as written) of the declaration line of `name` in a module.
+    `name` is the full name or the name as written on the line.
+    The full name is the namespace blocks above the line and the written name. A `_root_.` prefix also works.
+    A match of the full name wins. Exactly one line must match, else the function raises ValueError.
+    Two blocks of one module can hold the same written name, for example `theorem Decode.accept` of two types."""
     stack, full_hits, written_hits = [], [], []
     for i, l in enumerate(lines):
         m = re.match(r"^namespace (\S+)\s*$", l)
@@ -138,21 +160,22 @@ def find_decl(lines, name, kinds=("theorem",)):
 
 
 def code_namespace_of(c):
-    """Namespace of the code constant of a case: `code_namespace`, else `_root_` for a full name in `code_definition`.
-    A short name without `code_namespace` is a case error."""
+    """The namespace of the code constant of a case: `code_namespace`, else `_root_` for a full name in `code_definition`.
+    A short name without `code_namespace` is an error of the case."""
     if "code_namespace" in c:
         return c["code_namespace"]
     if "." in c["code_definition"]:
         return "_root_"
-    raise ValueError(f"{c['id']}: code_definition {c['code_definition']} is not a full name and there is no code_namespace")
+    raise ValueError(f"{c['id']}: code_definition {c['code_definition']} is not a full name, and the case has no code_namespace")
 
 
 ATTRIBUTE_LINE = re.compile(r"^@\[[^\]]*\]\s*$")
 
 
 def block_comments(lines):
-    """Top-level block comments of a Lean text: (start line, start column, end line, end column, doc), 0-based,
-    end column after `-/`. Block comments nest; line comments (`--`) and string literals are skipped."""
+    """The top-level block comments of a Lean text: (start line, start column, end line, end column, doc), 0-based.
+    The end column is after `-/`. Block comments can be inside other block comments.
+    The function skips line comments (`--`) and string literals."""
     out, depth, start, doc = [], 0, None, False
     for ln, line in enumerate(lines):
         k, instr = 0, False
@@ -182,10 +205,12 @@ def block_comments(lines):
 
 
 def command_start(lines, start):
-    """0-based first line of the Lean command whose `theorem` line is `lines[start]`. Above the `theorem` line the
-    command holds, from the bottom: attribute lines `@[…]`, one doc comment `/-- … -/` that ends at the end of the line
-    directly above them and starts a line, and `set_option … in` lines. A line comment, a plain `/- … -/` or a module
-    comment `/-! … -/` above the theorem is not part of the command; anything else stops the walk."""
+    """The first line (0-based) of the Lean command whose `theorem` line is `lines[start]`.
+    Above the `theorem` line, the command holds these lines, from the bottom:
+    attribute lines `@[…]`, one doc comment `/-- … -/`, and `set_option … in` lines.
+    The doc comment must start a line and end at the end of the line directly above the attribute lines.
+    A line comment, a plain `/- … -/` or a module comment `/-! … -/` above the theorem is not part of the command.
+    Each other line stops the walk."""
     i = start
     while i > 0 and ATTRIBUTE_LINE.match(lines[i - 1]):
         i -= 1
@@ -203,13 +228,13 @@ def cut(text, thm):
     lines = text.split("\n")
     start, written = find_decl(lines, thm)
     thm = written
-    # include preceding set_option lines that belong to the theorem
+    # Include the set_option lines above the theorem that belong to it.
     s0 = start
     while s0 > 0 and lines[s0 - 1].startswith("set_option") and lines[s0 - 1].rstrip().endswith(" in"):
         s0 -= 1
     end = next((i for i in range(start + 1, len(lines)) if TOP.match(lines[i])), len(lines))
-    # A statement-kind identity `theorem <thm>_kind` right after the theorem checks the
-    # theorem's whole declared type; it stays in the mutant and in the case range
+    # A theorem `<thm>_kind` directly after the theorem checks the whole declared type of the theorem.
+    # It stays in the mutant and in the case range.
     j = end
     while j < len(lines) and (lines[j].strip() == "" or lines[j].lstrip().startswith("--")):
         j += 1
@@ -225,9 +250,9 @@ def cut(text, thm):
 
 
 def _ps_table():
-    """pid -> (ppid, sid, state) from `ps`, for a system without /proc (macOS).
-    macOS `ps` prints 0 for the `sess` keyword, so os.getsid gives the session id.
-    A process for which getsid fails has ended or is a zombie. It is left out, so it does not count as alive."""
+    """pid: (ppid, sid, state) from `ps`, for a system without /proc (macOS).
+    macOS `ps` prints 0 for the `sess` keyword. Thus os.getsid gives the session id.
+    If getsid fails for a process, the process ended or is a zombie. The table does not hold it, so it is not alive."""
     t = {}
     out = subprocess.run(["ps", "-axo", "pid=,ppid=,state="], capture_output=True, text=True, check=True).stdout
     for line in out.splitlines():
@@ -241,7 +266,7 @@ def _ps_table():
 
 
 def _proc_table():
-    """pid -> (ppid, sid, state) from /proc (Linux), else from `ps` (macOS)."""
+    """pid: (ppid, sid, state) from /proc (Linux), else from `ps` (macOS)."""
     if not os.path.isdir("/proc"):
         return _ps_table()
     t = {}
@@ -258,8 +283,8 @@ def _proc_table():
 
 
 def _tree(root):
-    """The root, its live descendants, and every other member of their sessions (memory_limit.py puts lake/lean
-    into a new session). Our own session is excluded."""
+    """The root, its live descendants, and each other member of their sessions.
+    memory_limit.py puts lake and lean into a new session. The tree does not include the session of this runner."""
     t = _proc_table()
     own = os.getsid(0)
     pids, todo = {root}, [root]
@@ -280,10 +305,10 @@ def _alive(pids):
 
 
 def kill_tree(root):
-    """SIGKILL the root, its descendants and their sessions; wait up to 10 s; raise if any survives
-    (an earlier timeout killed only memory_limit.py and left lake/lean running)."""
+    """Send SIGKILL to the root, its descendants and their sessions. Wait up to 10 s.
+    If a process is still alive, raise RuntimeError. A kill of memory_limit.py alone can leave lake and lean alive."""
     pids, sids = _tree(root)
-    for p in pids:  # stop first, so that no member forks while we collect
+    for p in pids:  # stop each process first, so that no process forks during the collection
         try:
             os.kill(p, signal.SIGSTOP)
         except ProcessLookupError:
@@ -306,26 +331,27 @@ def kill_tree(root):
         time.sleep(0.1)
     left = _alive(pids)
     if left:
-        raise RuntimeError(f"timeout cleanup: processes survive: {left}")
+        raise RuntimeError(f"cleanup after the timeout: these processes are still alive: {left}")
     return sorted(pids)
 
 
 def run_capped(argv, cwd, timeout):
-    """Run argv; on timeout kill the whole process tree (also new sessions below it) and assert that
-    nothing survives before the caller starts the next case. Returns (log, rc, timed_out, reaped pids)."""
+    """Run argv. On a timeout, kill the whole process tree, which includes the new sessions below it.
+    Make sure that no process is alive before the caller starts the next case.
+    The result is (log, rc, timed_out, reaped pids)."""
     p = subprocess.Popen(argv, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
                          errors="replace")
     try:
         out, err = p.communicate(timeout=timeout)
         return out + err, p.returncode, False, []
-    except subprocess.TimeoutExpired:  # its own class: never a pass
+    except subprocess.TimeoutExpired:  # a class of its own, which is never a pass
         reaped = kill_tree(p.pid)
         out, err = p.communicate()
         return (out or "") + (err or ""), None, True, reaped
 
 
 def module_name(path):
-    """`Uvarint/Statements.lean` -> `Uvarint.Statements`."""
+    """The module name of a path, for example `Uvarint.Statements` for `Uvarint/Statements.lean`."""
     return path[:-len(".lean")].replace("/", ".")
 
 
@@ -345,8 +371,8 @@ def import_closure(mods):
 def inline_modules(c, lines):
     """Copy the modules of `inline` into the mutant text, before the case module.
     Each copy goes into its own `section`, so its `open` and `variable` commands stay local.
-    Their imports go to the top, without the imports of copied modules. The case module loses those imports too.
-    Returns the new lines and the shift of the line numbers of the case module."""
+    Their imports go to the top, without the imports of copied modules. The case module also loses those imports.
+    The result is the new lines and the shift of the line numbers of the case module."""
     paths = c.get("inline", [])
     if not paths:
         return lines, 0
@@ -383,14 +409,16 @@ def inline_modules(c, lines):
 
 def build_mutant(c, sdir):
     """The mutant Lean text of a case, its range and its diff. A code case includes the .S file `sdir/mut.S`.
-    Returns (text, lo, hi, mutated .S text or None, diff). Raises ValueError for a case that cannot be built."""
+    The result is (text, lo, hi, changed .S text or None, diff).
+    For a case that the function cannot build, it raises ValueError."""
     src = (LEAN / c["module"]).read_text()
     lines, lo, hi = cut(src, c["theorem"])
-    # lines of the theorem's command above its `theorem` line (set_option … in, doc comment); the inserted import
-    # and code lines below go above the command, so this count stays and the case range is [lo - head, hi]
+    # The lines of the command above the `theorem` line: set_option … in lines and the doc comment.
+    # The import and code lines that the function adds go above the command.
+    # Thus this count does not change, and the case range is [lo - head, hi].
     head = (lo - 1) - command_start(lines, lo - 1)
     extra = [f"import {m}" for m in c.get("mutant_imports", [])]
-    if extra:  # after the last import line of the copy; the theorem range moves with them
+    if extra:  # after the last import line of the copy. The range of the theorem moves with these lines.
         k = max(i for i, l in enumerate(lines) if l.startswith("import ")) + 1
         lines = lines[:k] + extra + lines[k:]
         lo += len(extra)
@@ -403,7 +431,7 @@ def build_mutant(c, sdir):
     if c.get("code_definition"):
         S = (KR / c["assembly"]).read_text()
         if c["kind"] == "code":
-            if "line" in c:  # 1-based line of the .S file (for an instruction that occurs twice)
+            if "line" in c:  # 1-based line of the .S file, for an instruction that occurs two times
                 sl = S.split("\n")
                 if sl[c["line"] - 1] != c["old"]:
                     raise ValueError(f"{c['id']}: line {c['line']} does not hold the old instruction")
@@ -476,14 +504,14 @@ def run_case(c, work):
     killed = "killed=True" in log
     errl = [l for l in log.splitlines() if ": error" in l]
     later = next((l for l in errl[1:] if HEARTBEAT in l or RECDEPTH in l), None)
-    # A first error that names the original program and the mutant program is a mismatch of two
-    # program constants (for example a helper about the original program), not an effect of the mutation.
+    # A first error that names the original program and the mutant program is a mismatch of two program constants.
+    # An example is a lemma about the original program. It is not an effect of the mutation.
     mixed = False
     if c.get("code_definition"):
         msg, name = first_message(log, f), c["code_definition"]
         mixed = (re.search(rf"(?<![A-Za-z0-9_']){re.escape(name)}Mut(?![A-Za-z0-9_'])", msg) is not None
                  and re.search(rf"(?<![A-Za-z0-9_']){re.escape(name)}(?![A-Za-z0-9_'])", msg) is not None)
-    # no absolute work-dir path in the committed result file
+    # The result file holds no absolute path of the work directory.
     first, later = [x.replace(str(work), "<work>") if x else x for x in (first, later)]
     r = {"id": c["id"], "kind": c["kind"], "module": c["module"], "theorem": c["theorem"],
          "range": [lo, hi], "error_lines": errs, "first_error": first, "rc": rc,
@@ -493,9 +521,9 @@ def run_case(c, work):
 
 
 def classify(r):
-    """Class and pass flag from the recorded fields only (also applied to old results). The resource
-    classes follow the FIRST error line (the first error is Lean's timeout); a later
-    heartbeat or recursion error after a real first error is kept as a flag (`later_resource_error`)."""
+    """The class and the pass flag, from the recorded fields only. --reclassify also applies it to old results.
+    The FIRST error line decides the resource classes.
+    A later heartbeat or recursion error after a real first error stays as a flag (`later_resource_error`)."""
     errs, lo, hi = r["error_lines"], r["range"][0], r["range"][1]
     first = r.get("first_error") or ""
     hb = HEARTBEAT in first
@@ -508,7 +536,7 @@ def classify(r):
         k = "timeout_wall"
     elif r["killed"]:
         k = "killed"
-    elif r["rc"] not in (0, 1):  # Lean exits with 1 on an error; another status is a crash
+    elif r["rc"] not in (0, 1):  # Lean exits with 1 on an error. Another status is a crash.
         k = "abnormal_exit"
     elif r["kind"] == "control":
         k = "control_pass" if r["rc"] == 0 and not errs else "control_fail"
@@ -531,7 +559,7 @@ def classify(r):
 
 def reclassify(out, work=None):
     d = json.load(open(out))
-    for c in d["cases"]:  # fill the later-resource flag from the archived log when it is there
+    for c in d["cases"]:  # fill the flag later_resource_error from the log, if the log exists
         lp = pathlib.Path(work) / c["id"] / "log" if work else None
         if lp and lp.exists():
             errl = [l for l in lp.read_text(errors="replace").splitlines() if ": error" in l]
@@ -547,7 +575,7 @@ def reclassify(out, work=None):
 
 
 def imports_of(modules):
-    """Module names imported by the given files (paths under lean/)."""
+    """The module names that the given files import (paths under lean/)."""
     mods = set()
     for m in modules:
         for l in (LEAN / m).read_text().split("\n"):
@@ -557,8 +585,9 @@ def imports_of(modules):
 
 
 def precheck(modules, extra=()):
-    """`lake env lean` does no trace check, so a stale .olean could be used. Before any case,
-    `lake build --no-build <imports>` must exit 0 (every imported module is up to date; also the `mutant_imports`)."""
+    """`lake env lean` does not check that the build is current, so it can use an old .olean file.
+    Before the first case, `lake build --no-build <imports>` must exit with 0.
+    Then each imported module is current, also each module of `mutant_imports`."""
     imps = sorted(set(imports_of(modules)) | set(extra))
     argv = ["lake", "build", "--no-build"] + imps
     r = subprocess.run(argv, cwd=LEAN, capture_output=True, text=True)
@@ -572,14 +601,14 @@ def main(cases, work, out, *ids):
     if ids:
         missing = sorted(set(ids) - {c["id"] for c in cs})
         cs = [c for c in cs if c["id"] in ids]
-        if missing or not cs:  # an id that matches no case is a usage error, not 0 cases run
-            print("NO SUCH CASE:", missing, "; no case run", flush=True)
+        if missing or not cs:  # an id that matches no case is a usage error, not a run of 0 cases
+            print("NO SUCH CASE:", missing, ". No case ran.", flush=True)
             return 2
     work = pathlib.Path(work).resolve()
     work.mkdir(parents=True, exist_ok=True)
     pc = precheck(sorted({c["module"] for c in cs}), sorted({m for c in cs for m in c.get("mutant_imports", [])}))
     if pc["rc"] != 0:
-        print("PRECHECK FAILED: stale or missing imported modules; no case run", pc["failures"], flush=True)
+        print("PRECHECK FAILED: an imported module is old or missing. No case ran.", pc["failures"], flush=True)
         return 2
     res = []
     for c in cs:
@@ -597,7 +626,7 @@ def main(cases, work, out, *ids):
 
 
 def selftest():
-    """Classifier fixture: a heartbeat timeout and a wall timeout are never a pass."""
+    """Fixtures of the classifier and the case range. For example, a heartbeat timeout and a wall timeout are never a pass."""
     base = dict(kind="statement", range=[1, 9], rc=1, killed=False, timeout=False)
     fx = [("hb", dict(error_lines=[5], first_error="x:5:1: error: (deterministic) timeout at `whnf`"), "timeout_heartbeat"),
           ("in", dict(error_lines=[5], first_error="x:5:1: error: type mismatch"), "inside"),
@@ -608,7 +637,7 @@ def selftest():
           ("later_hb", dict(error_lines=[5, 7], first_error="x:5:1: error: ecancel failed",
                             later_resource_error="x:7:1: error: (deterministic) timeout at `whnf`"), "inside"),
           ("ctl", dict(kind="control", error_lines=[], first_error=None, rc=0), "control_pass"),
-          # name resolution and parse errors inside the range are wrong_target, not inside
+          # A name resolution error or a parse error inside the range is wrong_target, not inside.
           ("wt_uid", dict(error_lines=[5], first_error="x:5:47: error(lean.unknownIdentifier): Unknown identifier `hms`"),
            "wrong_target"),
           ("wt_uid_old", dict(error_lines=[5], first_error="x:5:47: error: unknown identifier 'hms'"), "wrong_target"),
@@ -619,7 +648,7 @@ def selftest():
            "wrong_target"),
           ("wt_parse2", dict(error_lines=[5], first_error="x:5:9: error: expected ':=', 'where' or '|'"), "wrong_target"),
           ("wt_eoi", dict(error_lines=[9], first_error="x:9:0: error: unexpected end of input"), "wrong_target"),
-          # a real record (`exact` -> `exactt`) and crafted forms
+          # A real record (`exact` changed to `exactt`) and made forms.
           ("wt_tactic", dict(error_lines=[54], first_error="x:54:3: error: unknown tactic", range=[1, 60]), "wrong_target"),
           ("wt_ns", dict(error_lines=[5], first_error="x:5:5: error: unknown namespace `Foo`"), "wrong_target"),
           ("wt_field", dict(error_lines=[5], first_error="x:5:2: error: Invalid field `foo`: The environment does not "
@@ -638,21 +667,21 @@ def selftest():
           ("wt_kind", dict(error_lines=[5], first_error="x:5:2: error(lean.unknownIdentifier): Unknown identifier `h`"),
            "wrong_target"),
           ("wt_cmd", dict(error_lines=[5], first_error="x:5:0: error: unexpected command"), "wrong_target"),
-          # two forms that escaped before (real first-error strings of the pinned toolchain)
+          # Two real first errors of the pinned toolchain, which the list did not catch before.
           ("wt_option", dict(error_lines=[54], first_error="x:54:2: error: Unknown option `rv.nosuch`", range=[21, 55]),
            "wrong_target"),
           ("wt_casetag", dict(error_lines=[54], first_error="x:54:2: error: Case tag `rvnosuch` not found.",
                               range=[21, 55]), "wrong_target"),
           ("wt_casetag_hint", dict(error_lines=[5], first_error="x:5:2: error: Case tag `h` not found.\nHint: x"),
            "wrong_target"),
-          # messages that only contain such words later are real failures
+          # A message that has such words only later is a real failure.
           ("in_mentions_expected", dict(error_lines=[5], first_error="x:5:1: error: Application type mismatch: "
                                                                          "hms has type True but is expected to have type"),
            "inside"),
           ("in_unknown_later", dict(error_lines=[5], first_error="x:5:1: error: omega could not prove the goal: "
                                                                      "unknown identifier in a hint"), "inside"),
           ("wt_unexp_tactic", dict(error_lines=[5], first_error="x:5:1: error: Unexpected tactic"), "wrong_target"),
-          # a later unknown identifier after a real first error does not change the class
+          # A later unknown identifier after a real first error does not change the class.
           ("in_then_uid", dict(error_lines=[5, 6], first_error="x:5:1: error: Type mismatch"), "inside"),
           ("in_unsolved", dict(error_lines=[5], first_error="x:5:1: error: unsolved goals"), "inside"),
           ("crash_after_error", dict(error_lines=[5], first_error="x:5:1: error: type mismatch", rc=-11), "abnormal_exit"),
@@ -665,7 +694,7 @@ def selftest():
         r = classify({**base, "id": name, **f})
         if r["class"] != want or r["pass"] != (want in ("inside", "control_pass")):
             bad.append((name, r["class"], want))
-    # the case range starts at the theorem's command: its set_option … in lines and its doc comment
+    # The case range starts at the command of the theorem: its set_option … in lines and its doc comment.
     src = ["import X", "", "set_option maxHeartbeats 400 in", "set_option maxRecDepth 10 in", "/-- doc", "-/",
            "theorem T.a : True := by", "  trivial", "", "/-- next -/", "theorem T.b : True := trivial"]
     lines, lo, hi = cut("\n".join(src), "T.a")
@@ -679,31 +708,31 @@ def selftest():
     src3 = ["import X", "theorem T.d : True := trivial", "theorem T.e : True := trivial"]
     if command_start(src3, 2) != 2:
         bad.append(("range_no_prefix", command_start(src3, 2), 2))
-    # comments that are not the theorem's doc comment stop the walk (review D1): plain, module, line comment
+    # A comment that is not the doc comment of the theorem stops the walk: a plain, a module or a line comment.
     for name, cmt in (("range_plain_comment", ["/- plain comment", "-/"]), ("range_module_comment", ["/-! section", "-/"]),
                       ("range_line_comment", ["-- note -/"]), ("range_plain_one_line", ["/- plain -/"])):
         s4 = ["import X", "/-- doc of a -/", "theorem T.a : True := trivial", ""] + cmt + ["theorem T.b : True := trivial"]
         got = command_start(s4, len(s4) - 1)
         if got != len(s4) - 1:
             bad.append((name, got, len(s4) - 1))
-    # the reviewer's example: expected 6 (the `theorem` line itself), not 1
+    # The expected start is 6, which is the `theorem` line itself, not 1.
     s5 = ["import X", "/-- doc of a -/", "theorem T.a : True := trivial", "", "/- plain comment", "-/",
           "theorem T.b : True := trivial"]
     if command_start(s5, 6) != 6:
         bad.append(("range_review_example", command_start(s5, 6), 6))
-    # a doc comment above a set_option … in line of another command is not taken (the walk ends at TOP)
+    # The walk does not take a doc comment above a set_option … in line of another command. The walk ends at TOP.
     s6 = ["import X", "/-- doc", "of a -/", "theorem T.a : True := by", "  trivial", "  -/", "theorem T.b : True := trivial"]
     if command_start(s6, 6) != 6:
         bad.append(("range_body_comment_end", command_start(s6, 6), 6))
-    # attribute lines belong to the command: set_option, doc comment, @[simp], theorem
+    # Attribute lines are part of the command: set_option, doc comment, @[simp], theorem.
     s7 = ["import X", "set_option maxRecDepth 10 in", "/-- doc -/", "@[simp]", "theorem T.f : True := trivial"]
     if command_start(s7, 4) != 1:
         bad.append(("range_attribute", command_start(s7, 4), 1))
-    # a multi-line doc comment with a blank line inside counts
+    # A doc comment of more than one line, with an empty line inside, counts.
     s8 = ["import X", "/-- first", "", "second -/", "theorem T.g : True := trivial"]
     if command_start(s8, 4) != 1:
         bad.append(("range_doc_blank_inside", command_start(s8, 4), 1))
-    # an error of the whole declaration at its first line is inside (the case of a later heartbeat timeout)
+    # An error of the whole declaration at its first line is inside, also with a later heartbeat timeout.
     r = classify({**base, "id": "cmd", "range": [34, 84], "error_lines": [60, 36],
                   "first_error": "x:60:61: error: Application type mismatch: The argument",
                   "later_resource_error": "x:36:0: error: (deterministic) timeout at `whnf`"})
@@ -714,8 +743,8 @@ def selftest():
 
 
 def selftest_timeout():
-    """Fake child (no Lean): a child that starts a grandchild in a NEW session (as memory_limit.py does)
-    and both sleep. After the timeout no process of the tree may survive."""
+    """A fake child process (no Lean) starts a grandchild in a NEW session, as memory_limit.py does.
+    Both processes sleep. After the timeout, no process of the tree can be alive."""
     code = ("import subprocess,sys,time\n"
             "g=subprocess.Popen([sys.executable,'-c','import time\\ntime.sleep(600)'],start_new_session=True)\n"
             "print('grandchild',g.pid,flush=True)\n"
@@ -727,7 +756,7 @@ def selftest_timeout():
     ok = to and rc is None and gc in reaped and not left and time.time() - t0 < 30
     print("selftest-timeout", "PASS" if ok else "FAIL", {"timed_out": to, "grandchild": gc, "reaped": reaped,
                                                          "survivors": left, "s": round(time.time() - t0, 1)})
-    # control: a quick child is not a timeout
+    # Control: a quick child process is not a timeout.
     log2, rc2, to2, _ = run_capped([sys.executable, "-I", "-c", "print('ok')"], "/", 20)
     ok2 = rc2 == 0 and not to2 and log2.strip() == "ok"
     print("selftest-timeout-control", "PASS" if ok2 else "FAIL")
@@ -735,9 +764,9 @@ def selftest_timeout():
 
 
 def check_cases(*paths):
-    """Dry run (no Lean): build the mutant text of each case of each case file, as the run does.
+    """A run without Lean: build the mutant text of each case of each case file, as the run does.
     Each module of "mutant_imports" must exist under lean/, must not be the case module or one of its imports,
-    and must occur once. Prints one line per failure and a summary."""
+    and must occur once. The function prints one line for each failure, and a summary."""
     bad, n = [], 0
     for p in paths:
         for c in json.load(open(p)):

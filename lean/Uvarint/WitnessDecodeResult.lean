@@ -5,14 +5,17 @@ import Machine.WitnessHost
 /-!
 # Witnesses of `Uvarint.Decode.result`
 
-Host: the real `encoding/binary.Uvarint` alone, at index 0 (directive `i` at `0x10000 + i`).
-Memory: one block at `0x10000`. It holds the return slot (rsp = 0x10000, return address 0),
-the spill slot at rsp + 8 (old bytes zero), the buffer at `0x10010` (rax) and 8 more bytes.
-The frame `R` is exactly these 8 bytes.
+The host holds only the real `encoding/binary.Uvarint`, at the index 0. Its directive `i` is at `0x10000 + i`.
+The memory is one block at `0x10000`. The block holds these parts:
+- the return slot: rsp is `0x10000`, and the return address is 0,
+- the spill slot at rsp + 8, with old bytes of value zero,
+- the buffer at `0x10010`, which is the value of rax,
+- 8 more bytes. The frame `R` is these 8 bytes.
 
-For every buffer below `2 ^ 32` bytes, this state meets every premise of the main theorem (`premises_hold`).
+`premises_hold` shows that this state satisfies each premise of the main theorem, for each buffer below `2 ^ 32` bytes.
 The theorems `runs_empty`, `runs_one_byte` and `runs_maximum` apply the main theorem to three buffers.
-Each one gives the concrete result registers.
+Each theorem gives the concrete result registers.
+`runs_maximum` uses the largest value, not the largest buffer.
 -/
 
 open Machine Machine.Witness Uvarint.Code
@@ -31,7 +34,7 @@ theorem labels_fresh_at_0 : LabelsFresh uvarint 0 := fun _ hi => absurd hi (Nat.
 
 abbrev zeros (k : Nat) : List UInt8 := List.replicate k 0
 
-/-- Return slot (return address 0), spill slot, buffer, 8 frame bytes. -/
+/-- The return slot with the return address 0, the spill slot, the buffer and 8 bytes of the frame. -/
 def block (buf : List UInt8) : List UInt8 :=
   Int.toBytes 8 (0 : UInt64).toBitVec.toInt ++ (zeros 8 ++ (buf ++ zeros 8))
 
@@ -40,7 +43,7 @@ def mem (buf : List UInt8) : DataMem := (block buf).At (0x10000 : BitVec 64)
 def initial_state (buf : List UInt8) (zmms : RegZmms) (flags : StatusFlags) : MachineData :=
   ⟨⟨0x10010, UInt64.ofNat buf.length, 0, 0, 0, 0, 0x10000, 0, 0, 0, 0, 0, 0, 0, 0, 0⟩, zmms, flags, mem buf⟩
 
-/-- The frame `R` of the witness: exactly the 8 bytes after the buffer. -/
+/-- The frame `R` of the witness: the 8 bytes after the buffer, and no other byte. -/
 def frame_rest (buf : List UInt8) : DataMem → Prop :=
   Eq ((zeros 8).At ((0x10010 : BitVec 64) + BitVec.ofNat 64 buf.length))
 
@@ -60,8 +63,8 @@ theorem witness_mem (buf : List UInt8) (hlen : buf.length < 2 ^ 32) (zmms : RegZ
   simp only [s, initial_state, frame_rest, UInt64.toBitVec_ofNat, BitVec.ofNat_eq_ofNat, BitVec.reduceAdd]
   simpa only [Std.ExtHashMap.sep_assoc] using H
 
-/-- **The premises of `Decode.result_statement` are consistent.** For every buffer below `2 ^ 32` bytes,
-the witness host and state meet each premise. -/
+/-- **The premises of `Decode.result_statement` are consistent.** For each buffer below `2 ^ 32` bytes,
+the witness host and state satisfy each premise. -/
 theorem premises_hold (buf : List UInt8) (hlen : buf.length < 2 ^ 32) (zmms : RegZmms) (flags : StatusFlags) :
     let s := initial_state buf zmms flags
     uvarint.IsInfixAt Host.prog 0 ∧ LabelsFresh uvarint 0 ∧ (zeros 8).length = 8

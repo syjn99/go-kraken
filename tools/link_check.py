@@ -1,48 +1,48 @@
 #!/usr/bin/env python3
-# Source: methodical-ssz commit 320929dd, fv/kraken/link/check.py (SSZ-specific parts removed).
-"""Link-level check: the converted assembly that Lean reads is the code in the ELF.
+# Source: fv/kraken/link/check.py of methodical-ssz commit 320929dd, without the parts that are specific to SSZ.
+"""Link check: the converted assembly that Lean reads is the code of the pinned ELF.
 
-Usage: link_check.py <outdir>      (outdir = targets/<name>/build, after build_target.sh)
-       link_check.py --selftest <outdir>
+Usage: link_check.py <build directory>
+       link_check.py --selftest <build directory>
 
-Inputs in <outdir>: target-amd64 (ELF), target.objdump, target-amd64.nm, norm/*.S,
-data/*.data (no data files: the data set is empty, and (f) says so).
-Writes <outdir>/RESULT. Exit status 1 on any failure.
+The build directory is targets/<name>/build, after tools/build_target.sh.
+It holds target-amd64 (the ELF), target.objdump, target-amd64.nm, build-ids.txt, norm/*.S and data/*.data.
+A target without data items has no data files.
+The check writes <build directory>/RESULT. The exit status is 1 on a failure.
 
-Checks:
- (a) every function: ELF .symtab address and size; objdump instructions cover
-     exactly [addr, addr+size) without gaps; objdump bytes = ELF file bytes;
-     LLVM (llvm-objdump, an independent decoder) has the same instruction
-     boundaries; every label `L_<fn>_<off>` in the .S sits before the
-     instruction at fn+off.
- (b) every global label in the .S (call target, `sym+off(%rip)`): the symbol
-     exists in the ELF .symtab, its section, and that `addr + len + disp` of the
-     original instruction is `sym + off`.
- (c) LabelsFresh in the host program all.S: every label is defined once, so no
-     label of a function occurs before it; external labels are not defined in
-     all.S (they are the host's other code and data).
- (d) the .S instructions, assembled again by clang --target=x86_64-linux-gnu at
-     the original addresses, give the ELF bytes (spelling map for clang only:
-     direct `jmpq L` -> `jmp L`). A difference is "encoding" if
-     LLVM decodes both byte strings to the same text, "padding" if it is a
-     normalized nop, else FAIL. At a padding position the .S instruction must
-     be `nop`, its new byte must be 0x90, and LLVM must decode the original
-     bytes as a nop (a `retq` there used to pass).
- (e) all.S has the same directives as the per-function .S files, in order
-     (instructions included, not only labels).
- (f) every data file data/<id>.data that Lean includes (`data_include`):
-     its `at <label> <off>` names one ELF symbol; the file's
-     `bytes` are the ELF file bytes there, and each `word <s> <o>` is the
-     8-byte little-endian value address(s) + o at its position; every byte
-     of the file is printable ASCII or a newline (the rule of data_include).
-     With no data file, (f) reports that the data set is empty.
-     This checker does not read Lean sources: which definitions a theorem uses is
-     read from the theorem statements, not checked here. Items that the
-     proven code addresses with `lea` are bound to their id by the proofs;
-     the items that only a contract uses are bound by the contract
-     hypothesis. This check binds neither.
-The bundle hash (sha256 over RESULT up to and including the last PASS line,
-which covers the ELF, the .S files and the data files) is the last line.
+These are the checks:
+- Pins: the ELF, target.objdump and target-amd64.nm have the sha256 values of build-ids.txt.
+- Code: for each function, the ELF symbol table gives the address and the size.
+  The objdump instructions cover the range [addr, addr+size) without gaps.
+  The objdump bytes are the ELF file bytes.
+  LLVM (llvm-objdump, a second decoder) finds the same instruction boundaries.
+  Each label L_<fn>_<off> of the .S file is before the instruction at fn+off.
+  Each local label that an instruction names has a definition in the .S file.
+- Global references: each global label in a .S file (a call target or sym+off(%rip)) names a symbol of the ELF.
+  For a reference relative to rip, addr + len + disp of the original instruction is sym + off.
+- Labels: in the host program all.S, each label has one definition.
+  Thus no label of a function occurs before that function (LabelsFresh).
+  all.S does not define an external label. External labels are the other code and data of the host.
+- Host program: all.S has the same directives as the function files, in the same order.
+  The comparison includes the instructions, not only the labels.
+- Data: the `at <label> <off>` line of each data file data/<id>.data names one ELF symbol.
+  The `bytes` of the file are the ELF file bytes at that place.
+  Each `word <s> <o>` is the 8-byte little-endian value address(s) + o at its position.
+  Each byte of the file is printable ASCII or a newline, which is the rule of the data include command.
+  Without data files, the check reports that the data set is empty.
+- Reassembly: clang --target=x86_64-linux-gnu assembles the .S instructions again at the original addresses.
+  The result must be the ELF bytes. For clang only, a direct `jmpq L` becomes `jmp L`.
+  A difference is "encoding" if LLVM decodes both byte strings to the same text.
+  A difference is "padding" if the converter changed the original nop form to `nop`.
+  At a padding position, the .S instruction must be `nop` and its new byte must be 0x90.
+  LLVM must also decode the original bytes as a nop. Each other difference is a failure.
+
+The check does not read the Lean sources.
+A reader reads the theorem statements to see which definitions a theorem uses.
+The proofs bind an item that the proved code addresses with `lea` to its identifier.
+A contract hypothesis binds an item that only a contract uses. This check binds neither.
+The last line is the bundle hash: the sha256 over RESULT up to the line "PASS all".
+That part covers the ELF, the .S files and the data files.
 """
 import hashlib
 import importlib.util
@@ -76,7 +76,7 @@ def sha(p):
 # ---------------------------------------------------------------- ELF reading
 def read_elf(path):
     b = pathlib.Path(path).read_bytes()
-    need(b[:6] == b"\x7fELF\x02\x01", "not an ELF64 LSB file")
+    need(b[:6] == b"\x7fELF\x02\x01", "the file is not a 64-bit little-endian ELF file")
     shoff, = struct.unpack_from("<Q", b, 0x28)
     shentsize, shnum, shstrndx = struct.unpack_from("<HHH", b, 0x3A)
     secs = []
@@ -108,7 +108,7 @@ def elf_bytes(b, secs, addr, n):
         if s["typ"] == 1 and s["addr"] <= addr and addr + n <= s["addr"] + s["size"]:  # PROGBITS
             o = s["off"] + addr - s["addr"]
             return b[o:o + n]
-    raise Fail(f"no file bytes at {addr:#x}")
+    raise Fail(f"the ELF file has no bytes at {addr:#x}")
 
 
 def section_of(secs, addr):
@@ -131,8 +131,8 @@ def llvm_decode(elf, lo, hi):
         [tool("llvm-objdump"), "-d", f"--start-address={lo}", f"--stop-address={hi}", str(elf)], text=True)
     out = {}
     for line in text.splitlines():
-        # `addr: bytes<TAB>text`; a 10-byte instruction fills the byte column, so its last byte is
-        # followed by the tab, not by a space (movabs in the Go 1.26.10 ELF)
+        # The form is `addr: bytes<TAB>text`. A 10-byte instruction fills the byte column.
+        # Thus a tab follows its last byte, not a space (movabs in the Go 1.26.10 ELF).
         m = re.match(r"\s*([0-9a-f]+):\s((?:[0-9a-f]{2} ?)+?) *\t(.*)$", line)
         if m:
             out[int(m[1], 16)] = (bytes.fromhex(m[2].replace(" ", "")), re.sub(r"\s+", " ", m[3]).split(" <")[0].strip())
@@ -149,7 +149,7 @@ def parse_S(path):
         if line.startswith("  "):
             out.append(("ins", line.strip()))
         else:
-            need(line.endswith(":"), f"{path}: bad line {line!r}")
+            need(line.endswith(":"), f"{path}: the line {line!r} is not a label or an instruction")
             out.append(("label", line[:-1]))
     return out
 
@@ -176,21 +176,21 @@ def run(outdir, log):
     conv.CLEANED.clear()
     fns = conv.read_objdump(outdir / "target.objdump")
     nm = conv.read_nm(outdir / "target-amd64.nm")
-    # Go's nm adds size-0 group symbols (`type:*`, `go:string.*`) that are not in
-    # the ELF .symtab; they are taken from nm with the section of their address.
+    # Go nm adds group symbols of size 0 (`type:*`, `go:string.*`) that the ELF symbol table does not have.
+    # The check takes them from nm, with the section of their address.
     nmonly = set()
     for a, sz, name in nm:
         if name not in esyms:
             esyms[name] = (a, sz, section_of(secs, a))
             nmonly.add(name)
-    # Sanitized name -> original names over the whole binary: a referenced name
-    # must have exactly one original (stricter than convert_objdump.py, which sees only used names).
+    # Each clean name maps to its original names over the whole binary. A referenced name must have one original.
+    # This rule is stricter than the rule of convert_objdump.py, which sees only the names that the code uses.
     rev = {}
     for name in esyms:
         rev.setdefault(conv.short(name), set()).add(name)
 
     def orig(g):
-        need(len(rev.get(g, ())) == 1, f"name {g} has originals {sorted(rev.get(g, ()))}")
+        need(len(rev.get(g, ())) == 1, f"the name {g} does not have exactly one original: {sorted(rev.get(g, ()))}")
         return next(iter(rev[g]))
     raw = {}
     for line in (outdir / "target.objdump").read_text().splitlines():
@@ -198,42 +198,42 @@ def run(outdir, log):
         if m:
             raw[int(m[1], 16)] = bytes.fromhex(m[2])
     clean2orig = {}
-    hostlabels = []  # all.S labels in order
-    externals = {}   # clean name -> (addr, section, kind)
+    hostlabels = []  # the labels of all.S, in order
+    externals = {}   # clean name: (address, section, kind)
     per_fn = []
     for f in fns:
         name = conv.clean(f["name"])
         clean2orig[name] = f["name"]
         ins = f["ins"]
         lo, hi = ins[0][0], ins[-1][0] + ins[-1][1]
-        # (a) symbol extent
-        need(f["name"] in esyms, f"{f['name']}: not in ELF .symtab")
+        # Code: the extent of the symbol
+        need(f["name"] in esyms, f"{f['name']}: the ELF symbol table does not have this symbol")
         sa, ss, ssec = esyms[f["name"]]
-        need((sa, ss) == (lo, hi - lo), f"{name}: symtab {sa:#x}+{ss} vs objdump {lo:#x}+{hi - lo}")
-        need(ssec == ".text", f"{name}: section {ssec}")
+        need((sa, ss) == (lo, hi - lo), f"{name}: the symbol table gives {sa:#x}+{ss}, objdump gives {lo:#x}+{hi - lo}")
+        need(ssec == ".text", f"{name}: the section is {ssec}, not .text")
         dec = llvm_decode(elf, lo, hi)
-        need(set(dec) == {a for a, _, _ in ins}, f"{name}: LLVM instruction boundaries differ")
+        need(set(dec) == {a for a, _, _ in ins}, f"{name}: LLVM finds other instruction boundaries")
         for a, n, _ in ins:
-            need(raw[a] == elf_bytes(b, secs, a, n) == dec[a][0], f"{name}: bytes differ at {a:#x}")
-        # (a) labels of the .S against instruction addresses
+            need(raw[a] == elf_bytes(b, secs, a, n) == dec[a][0], f"{name}: the objdump, ELF and LLVM bytes are not equal at {a:#x}")
+        # Code: the labels of the .S file against the instruction addresses
         S = parse_S(outdir / "norm" / f"{name}.S")
-        need(S[0] == ("label", name), f"{name}: first directive is not the function label")
+        need(S[0] == ("label", name), f"{name}: the first directive is not the function label")
         k = 0
         for d in S[1:]:
             if d[0] == "label":
                 m = re.fullmatch(re.escape(f"L_{name}_") + r"([0-9a-f]+)", d[1])
-                need(m, f"{name}: unexpected local label {d[1]}")
+                need(m, f"{name}: the local label {d[1]} does not have the form L_<fn>_<offset>")
                 need(k < len(ins) and ins[k][0] == lo + int(m[1], 16),
-                     f"{name}: label {d[1]} not before the instruction at its address")
+                     f"{name}: the label {d[1]} is not before the instruction at its address")
             else:
                 k += 1
-        need(k == len(ins), f"{name}: .S has {k} instructions, objdump {len(ins)}")
+        need(k == len(ins), f"{name}: the .S file has {k} instructions, objdump has {len(ins)}")
         defined = {d[1] for d in S if d[0] == "label"}
         for d in S:
             for ref in re.findall(re.escape(f"L_{name}_") + r"[0-9a-f]+", d[1]) if d[0] == "ins" else ():
-                need(ref in defined, f"{name}: the instruction {d[1]!r} names the label {ref}, which the .S does not define")
+                need(ref in defined, f"{name}: the instruction {d[1]!r} names the label {ref}, which the .S file does not define")
         hostlabels += [d[1] for d in S if d[0] == "label"]
-        # (b) global references
+        # Global references
         sins = [d[1] for d in S if d[0] == "ins"]
         for (a, n, att), st in zip(ins, sins):
             br = conv.BRANCH.match(att)
@@ -241,94 +241,94 @@ def run(outdir, log):
                 t = int(br[2], 16)
                 g = st.split()[-1]
                 o = orig(g)
-                need(esyms[o][0] == t, f"{name}: call/jump target {g} != {t:#x}")
+                need(esyms[o][0] == t, f"{name}: the call or jump target {g} is not at {t:#x}")
                 externals.setdefault(g, (t, esyms[o][2], "code"))
             r = conv.RIP.search(att)
             if r:
                 t = a + n + int(r[1], 0)
                 m = re.search(r"([A-Za-z0-9_.]+)(?:\+(\d+))?\(%rip\)", st)
-                need(m, f"{name}: rip operand not converted: {st}")
+                need(m, f"{name}: the converter did not change the rip operand: {st}")
                 g, off = m[1], int(m[2] or 0)
                 o = orig(g)
                 sa, ss, ssec = esyms[o]
-                need(sa + off == t, f"{name}: {g}+{off} = {sa + off:#x}, instruction refers to {t:#x}")
+                need(sa + off == t, f"{name}: {g}+{off} is {sa + off:#x}, but the instruction refers to {t:#x}")
                 kind = "in-symbol" if off < max(ss, 1) else "group(nearest preceding symbol)"
                 if o in nmonly:
                     kind += ", nm-only symbol"
                 externals.setdefault(g if not off else f"{g}+{off}", (t, ssec, kind))
         per_fn.append((name, lo, hi, ins, sins, {d[1] for d in S if d[0] == "label"}))
-        log(f"PASS (a) {name}: {len(ins)} instructions, {hi - lo} bytes, symtab/objdump/LLVM/ELF bytes and labels agree")
-    # (b) report
+        log(f"PASS code {name}: {len(ins)} instructions, {hi - lo} bytes. The symbol table, objdump, LLVM, the ELF bytes and the labels agree")
+    # Global references: the report
     for g, (t, sec, kind) in sorted(externals.items(), key=lambda x: x[1][0]):
-        log(f"PASS (b) {g} = {t:#x} {sec} {kind}")
-    # (c) label uniqueness in the host program all.S
+        log(f"PASS global reference {g} = {t:#x} {sec} {kind}")
+    # Labels: one definition for each label of the host program all.S
     allS = parse_S(outdir / "norm" / "all.S")
     labs = [d[1] for d in allS if d[0] == "label"]
-    need(labs == hostlabels, "all.S labels are not the concatenation of the functions' labels")
+    need(labs == hostlabels, "the labels of all.S are not the labels of the function files in order")
     dup = {l for l in labs if labs.count(l) > 1}
-    need(not dup, f"duplicate labels in all.S: {sorted(dup)}")
+    need(not dup, f"all.S defines these labels more than one time: {sorted(dup)}")
     fnames = {x[0] for x in per_fn}
     clash = ({g.split("+")[0] for g in externals} & set(labs)) - fnames
-    need(not clash, f"external labels defined in all.S: {sorted(clash)}")
+    need(not clash, f"all.S defines these external labels: {sorted(clash)}")
     internal = sorted({g for g in externals} & fnames)
     for g in internal:
-        need(externals[g][0] == next(lo for n, lo, *_ in per_fn if n == g), f"call to {g} not at its entry")
-    log(f"PASS (c) all.S: {len(labs)} labels, each defined once; {len(externals) - len(internal)} external "
-        f"references not defined in all.S; {len(internal)} calls to target functions at their entry: {internal}")
-    # (e) all.S directives = per-function directives
+        need(externals[g][0] == next(lo for n, lo, *_ in per_fn if n == g), f"a call to {g} is not at its entry")
+    log(f"PASS labels all.S: {len(labs)} labels, each with one definition. {len(externals) - len(internal)} external "
+        f"references, which all.S does not define. {len(internal)} calls to target functions at their entry: {internal}")
+    # Host program: the directives of all.S are the directives of the function files
     want = []
     for name, *_ in per_fn:
         want += parse_S(outdir / "norm" / f"{name}.S")
-    need(allS == want, "all.S directives differ from the per-function .S files" +
-         next((f" (first at directive {i}: {x} vs {y})" for i, (x, y) in enumerate(zip(allS, want)) if x != y),
-              f" (lengths {len(allS)} vs {len(want)})"))
-    log(f"PASS (e) all.S: {len(allS)} directives equal the {len(per_fn)} function files in order")
-    # (f) data files = ELF bytes
+    need(allS == want, "the directives of all.S are not the directives of the function files" +
+         next((f" (the first difference is at directive {i}: {x} and {y})" for i, (x, y) in enumerate(zip(allS, want)) if x != y),
+              f" (the lengths are {len(allS)} and {len(want)})"))
+    log(f"PASS host program all.S: its {len(allS)} directives are the directives of the {len(per_fn)} function files in order")
+    # Data: the data files are the ELF bytes
     datas = sorted((outdir / "data").glob("*.data"))
     if not datas:
-        log("PASS (f) the data set is empty: no data files in data/")
+        log("PASS data: the data set is empty. The directory data/ has no data files")
     for p in datas:
         at, pos, n_b, n_w = None, 0, 0, 0
         raw = p.read_bytes()
         need(all(c == 10 or 0x20 <= c <= 0x7e for c in raw),
-             f"(f) {p.name}: a byte that is not printable ASCII or a newline (same rule as data_include)")
+             f"data file {p.name}: a byte is not printable ASCII or a newline (the rule of the data include command)")
         for line in raw.decode("ascii").split("\n"):
             w = line.split()
             if not w or w[0].startswith("#"):
                 continue
             need(all(re.fullmatch(r"[0-9a-f]{2}", x) for x in w[1:]) if w[0] == "bytes" else
                  len(w) != 3 or w[0] not in ("at", "word") or re.fullmatch(r"[0-9]+", w[2]),
-                 f"(f) {p.name}: token not in the data_include grammar: {line!r}")
+                 f"data file {p.name}: a token is not in the grammar of the data include command: {line!r}")
             if w[0] == "at" and len(w) == 3 and at is None and pos == 0:
                 at = esyms[orig(w[1])][0] + int(w[2])
             elif w[0] == "bytes" and at is not None:
                 bs = bytes(int(x, 16) for x in w[1:])
                 need(all(len(x) == 2 for x in w[1:]) and elf_bytes(b, secs, at + pos, len(bs)) == bs,
-                     f"(f) {p.name}: bytes at {at + pos:#x} differ from the ELF")
+                     f"data file {p.name}: the bytes at {at + pos:#x} are not the ELF bytes")
                 pos += len(bs); n_b += len(bs)
             elif w[0] == "word" and len(w) == 3 and at is not None:
                 v, = struct.unpack("<Q", elf_bytes(b, secs, at + pos, 8))
                 need(v == esyms[orig(w[1])][0] + int(w[2]),
-                     f"(f) {p.name}: word at {at + pos:#x} is {v:#x}, not {w[1]}+{w[2]}")
+                     f"data file {p.name}: the word at {at + pos:#x} is {v:#x}, not {w[1]}+{w[2]}")
                 pos += 8; n_w += 1
             else:
-                need(False, f"(f) {p.name}: bad directive {line!r}")
-        need(at is not None, f"(f) {p.name}: no `at` directive")
-        log(f"PASS (f) {p.name}: {at:#x}, {n_b} bytes and {n_w} words = ELF")
-    # (d) reassembly
+                need(False, f"data file {p.name}: the directive {line!r} is not valid")
+        need(at is not None, f"data file {p.name}: the file has no `at` directive")
+        log(f"PASS data {p.name}: {at:#x}, {n_b} bytes and {n_w} words are the ELF bytes")
+    # Reassembly
     diffs = reassemble(per_fn, {g.split("+")[0]: orig(g.split("+")[0]) for g in externals}, esyms, b, secs, outdir)
     for name, a, kind, orig, new, txt in diffs:
-        log(f"DIFF (d) {name} {a:#x} {kind}: elf {orig.hex()} asm {new.hex()} {txt}")
-    need(all(k != "FAIL" for _, _, k, _, _, _ in diffs), "reassembly mismatch (see DIFF FAIL lines)")
+        log(f"DIFF reassembly {name} {a:#x} {kind}: elf {orig.hex()} asm {new.hex()} {txt}")
+    need(all(k != "FAIL" for _, _, k, _, _, _ in diffs), "the reassembly gives other bytes (see the DIFF lines with FAIL)")
     n_ins = sum(len(x[3]) for x in per_fn)
-    log(f"PASS (d) {n_ins} instructions reassembled by clang x86_64-linux-gnu: "
-        f"{n_ins - len(diffs)} byte-identical, {sum(d[2] == 'encoding' for d in diffs)} encoding, "
+    log(f"PASS reassembly: clang x86_64-linux-gnu assembled {n_ins} instructions again: "
+        f"{n_ins - len(diffs)} with the same bytes, {sum(d[2] == 'encoding' for d in diffs)} with another encoding, "
         f"{sum(d[2] == 'padding' for d in diffs)} padding")
     return per_fn
 
 
 def reassemble(per_fn, externals, esyms, b, secs, outdir):
-    """One section, every function and external symbol at its ELF address via .org."""
+    """One section. Each function and each external symbol is at its ELF address, with .org."""
     anchors = []
     for name, lo, hi, ins, sins, labels in per_fn:
         anchors.append((lo, name, ins, sins, labels))
@@ -353,7 +353,7 @@ def reassemble(per_fn, externals, esyms, b, secs, outdir):
             # then stays a relocation, and the check fails.
             if lab in labels:
                 lines.append(f"{lab}:")
-            # spelling only: LLVM's assembler takes `jmp L`, not `jmpq L`, for a direct jump
+            # A spelling change only: the LLVM assembler accepts `jmp L`, not `jmpq L`, for a direct jump.
             lines.append("  " + re.sub(r"^jmpq (?=[A-Za-z_])", "jmp ", st))
     with tempfile.TemporaryDirectory() as d:
         src = pathlib.Path(d) / "re.S"
@@ -364,7 +364,7 @@ def reassemble(per_fn, externals, esyms, b, secs, outdir):
         need(r.returncode == 0, "clang: " + r.stderr[:2000])
         ob, osecs, _ = read_elf(obj)
         rel = [s for s in osecs if s["name"] == ".rela.text"]
-        need(not rel or rel[0]["size"] == 0, "reassembly left relocations in .text")
+        need(not rel or rel[0]["size"] == 0, "the reassembly has relocations in .text")
         text = next(s for s in osecs if s["name"] == ".text")
         body = ob[text["off"]:text["off"] + text["size"]]
     diffs = []
@@ -388,7 +388,7 @@ def reassemble(per_fn, externals, esyms, b, secs, outdir):
 
 
 def decode_bytes(bs, addr, outdir):
-    """LLVM text of the first instruction of bs, decoded as x86-64 at addr."""
+    """The LLVM text of the first instruction of bs, decoded as x86-64 at addr."""
     with tempfile.TemporaryDirectory() as d:
         s = pathlib.Path(d) / "d.S"
         o = pathlib.Path(d) / "d.o"
@@ -440,14 +440,15 @@ def repin(t):
 
 
 def selftest(outdir):
-    """Sensitivity: mutated inputs must fail; an unchanged copy must pass.
-    Each case finds its place in the link set. A case that needs a kind of input that the link set
-    does not have (a data file, a `sym+off(%rip)` operand, a padding nop) is reported as skipped."""
+    """Sensitivity: each changed copy of the inputs must fail. An unchanged copy must pass.
+    Each case finds its place in the link set.
+    Some cases need an input that the link set can lack: a data file, a `sym+off(%rip)` operand or a padding nop.
+    If the input is not there, the self-test reports the case as skipped."""
     outdir = pathlib.Path(outdir)
     fn_files = sorted(p for p in (outdir / "norm").glob("*.S") if p.name != "all.S")
     datas = sorted((outdir / "data").glob("*.data"))
     if not fn_files:
-        print(f"selftest: no function .S file in {outdir / 'norm'}")
+        print(f"selftest: {outdir / 'norm'} has no function .S file")
         return 1
     imm = re.compile(r"\$0x([0-9a-f]+)")
 
@@ -467,21 +468,21 @@ def selftest(outdir):
             shutil.copytree(outdir, t, dirs_exist_ok=True)
             return t
         f0 = fn_files[0].name
-        # 1. drop one instruction from a .S
+        # Remove one instruction from a .S file.
         t = copy(); p = t / "norm" / f0
         ls = p.read_text().splitlines()
         del ls[next(j for j in range(min(5, len(ls) - 1), len(ls)) if ls[j].startswith("  "))]
         p.write_text("\n".join(ls) + "\n")
-        cases.append(("drop an instruction", t, False))
-        # 2. change an immediate
+        cases.append(("remove an instruction", t, False))
+        # Change an immediate operand.
         f = first(lambda q: imm.search(q.read_text()), fn_files)
         if f:
             t = copy(); p = t / "norm" / f.name
             p.write_text(bump(p.read_text()))
             cases.append(("change an immediate", t, False))
         else:
-            cases.append(("change an immediate", None, "no immediate operand in a function file"))
-        # 3. move a label one instruction later
+            cases.append(("change an immediate", None, "a function file has no immediate operand"))
+        # Move a label one instruction later.
         lab = lambda q: next((j for j, l in enumerate(q.read_text().splitlines()) if l.startswith("L_") and j > 2), None)
         f = first(lambda q: lab(q) is not None, fn_files)
         if f:
@@ -490,13 +491,13 @@ def selftest(outdir):
             ls[i], ls[i + 1] = ls[i + 1], ls[i]; p.write_text("\n".join(ls) + "\n")
             cases.append(("move a label", t, False))
         else:
-            cases.append(("move a label", None, "no local label in a function file"))
-        # 4. objdump line without // (converter must fail)
+            cases.append(("move a label", None, "a function file has no local label"))
+        # Remove the // part of an objdump line. The converter must fail.
         t = copy(); p = t / "target.objdump"
         s = p.read_text(); assert "// " in s; p.write_text(re.sub(r"// [^\n]*", "", s, count=1))
         repin(t)
         cases.append(("objdump line without //", t, False))
-        # 5. global reference with the wrong offset
+        # Give a global reference the wrong offset.
         f = first(lambda q: "(%rip)" in q.read_text(), fn_files)
         if f:
             t = copy(); p = t / "norm" / f.name
@@ -505,8 +506,8 @@ def selftest(outdir):
             p.write_text(s[:m.start()] + (f"{m[1]}(%rip)" if m[2] else f"{m[1]}+8(%rip)") + s[m.end():])
             cases.append(("wrong global offset", t, False))
         else:
-            cases.append(("wrong global offset", None, "no sym+off(%rip) operand in the link set"))
-        # 6. a padding nop becomes retq in the function file and in all.S
+            cases.append(("wrong global offset", None, "the link set has no sym+off(%rip) operand"))
+        # Change a padding nop to retq in the function file and in all.S.
         f = first(lambda q: "  nop" in q.read_text().split("\n"), fn_files)
         if f:
             t = copy(); p = t / "norm" / f.name
@@ -514,17 +515,17 @@ def selftest(outdir):
             p = t / "norm" / "all.S"
             ls = p.read_text().split("\n"); i = ls.index(f"{f.stem}:") + j
             assert ls[i] == "  nop"; ls[i] = "  retq"; p.write_text("\n".join(ls))
-            cases.append(("padding nop -> retq", t, False))
+            cases.append(("padding nop changed to retq", t, False))
         else:
-            cases.append(("padding nop -> retq", None, "no padding nop in a function file"))
-        # 7. all.S instruction differs from the function file (labels unchanged)
+            cases.append(("padding nop changed to retq", None, "a function file has no padding nop"))
+        # Change an instruction of all.S, but not of the function file. The labels do not change.
         t = copy(); p = t / "norm" / "all.S"
         if imm.search(p.read_text()):
             p.write_text(bump(p.read_text()))
             cases.append(("all.S instruction changed", t, False))
         else:
-            cases.append(("all.S instruction changed", None, "no immediate operand in all.S"))
-        # 8. a data file byte
+            cases.append(("all.S instruction changed", None, "all.S has no immediate operand"))
+        # Change a byte of a data file.
         f = first(lambda q: re.search(r"^bytes [0-9a-f]{2}", q.read_text(), re.M), datas)
         if f:
             t = copy(); p = t / "data" / f.name
@@ -532,8 +533,8 @@ def selftest(outdir):
             p.write_text(s[:m.start(1)] + f"{int(m[1], 16) ^ 1:02x}" + s[m.end(1):])
             cases.append(("data file byte changed", t, False))
         else:
-            cases.append(("data file byte changed", None, "the data set has no bytes line (empty data set)"))
-        # 9. the ELF word at the first `word` line of a data file points 8 bytes later
+            cases.append(("data file byte changed", None, "the data set is empty, so it has no bytes line"))
+        # Add 8 to the ELF word at the first `word` line of a data file.
         f = first(lambda q: re.search(r"^word ", q.read_text(), re.M), datas)
         if f:
             t = copy(); p = t / "target-amd64"
@@ -557,15 +558,15 @@ def selftest(outdir):
             repin(t)
             cases.append(("ELF word of a data file changed", t, False))
         else:
-            cases.append(("ELF word of a data file changed", None, "the data set has no word line (empty data set)"))
-        # 10. a carriage return inside a data file (data_include splits on \n only)
+            cases.append(("ELF word of a data file changed", None, "the data set is empty, so it has no word line"))
+        # Put a carriage return into a data file. The data include command splits lines only at \n.
         if datas:
             t = copy(); p = t / "data" / datas[0].name
             p.write_bytes(p.read_bytes().replace(b"\n", b"\r", 1))
             cases.append(("data file with a carriage return", t, False))
         else:
             cases.append(("data file with a carriage return", None, "the data set is empty"))
-        # 11. a jump target label is removed from the function file and from all.S
+        # Remove a jump target label from the function file and from all.S.
         f = first(lambda q: lab(q) is not None, fn_files)
         if f:
             t = copy()
@@ -574,12 +575,12 @@ def selftest(outdir):
                 ls = p.read_text().split("\n"); ls.remove(name); p.write_text("\n".join(ls))
             cases.append(("jump target label removed", t, False))
         else:
-            cases.append(("jump target label removed", None, "no local label in a function file"))
-        # 12. the ELF pin of build-ids.txt is wrong
+            cases.append(("jump target label removed", None, "a function file has no local label"))
+        # Make the ELF pin of build-ids.txt wrong.
         t = copy(); p = t / "build-ids.txt"
         p.write_text(re.sub(r"^elf sha256: .*$", "elf sha256: " + "0" * 64, p.read_text(), flags=re.M))
         cases.append(("wrong ELF pin", t, False))
-        # 13. unchanged copy passes
+        # An unchanged copy passes.
         t = copy()
         cases.append(("unchanged copy", t, True))
         ok = True

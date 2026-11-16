@@ -3,9 +3,11 @@ import Uvarint.Code
 import Uvarint.Spec
 
 /-!
-# Statement of the main theorem of `encoding/binary.Uvarint` (statement only, no proof)
+# Statement of the main theorem of `encoding/binary.Uvarint`
 
-A later change needs a new name and a written reason. This definition stays.
+This file holds the statement only. The proof is in `Uvarint.DecodeResult`.
+
+Do not change this definition. A different statement needs a new name and a written reason.
 
     func Uvarint(buf []byte) (uint64, int) {
         var x uint64
@@ -22,11 +24,11 @@ A later change needs a new name and a written reason. This definition stays.
         return 0, 0
     }
 
-Go register ABI: at entry, rax is the slice pointer, rbx the length and rcx the capacity.
-At return, rax is the value and rbx is the number `n`.
+Go register calling convention: at the entry, rax holds the slice pointer, rbx holds the length and rcx holds the capacity.
+At the return, rax holds the value and rbx holds the number `n`.
 The function is a leaf. It has no stack frame, no stack guard check and no call.
 Its first instruction stores rax into the argument spill slot of the caller at `rsp + 8`.
-It reads at most 11 bytes of the buffer and writes no other memory.
+It reads at most 11 bytes of the buffer. It writes no memory other than the spill slot.
 -/
 
 open Machine Uvarint.Code
@@ -43,12 +45,12 @@ def Result.machineForm : Result → UInt64 × UInt64
   | .incomplete => (0, 0)
   | .overflow n => (0, UInt64.ofInt (-(n : Int)))
 
-/-- **Main theorem of `encoding/binary.Uvarint`, all three results in one statement.**
+/-- **Main theorem of `encoding/binary.Uvarint`. One statement covers all three results.**
 
 The statement quantifies over the place `k` of the code in a host program with fresh labels.
 It also quantifies over the entry state `s`, the return address `ra` and the buffer `buf`.
-The old spill slot bytes `spill` and the frame `R` are free too.
-Every execution from the entry returns to `ra`.
+The old bytes `spill` of the spill slot and the frame `R` are also free.
+Each execution from the entry returns to `ra`.
 At return, (rax, rbx) is the machine form of `Uvarint.decode buf`.
 `rsp` is the entry `rsp + 8`, and `rbp` and `r14` are unchanged.
 The spill slot holds the entry rax. The buffer, the return address and `R` are unchanged.
@@ -58,7 +60,7 @@ Premises:
 - `hspill`: the spill slot has 8 bytes. Its old content is free.
 - `h_mem`: the memory is the return address at `rsp`, the spill slot at `rsp + 8`,
   the buffer at the address in rax, and the frame `R`, all separate.
-- `hlength`: rbx holds the buffer length (Go register ABI).
+- `hlength`: rbx holds the buffer length (Go register calling convention).
 - `hbound`: the length is below `2 ^ 63`. A Go length is a non-negative `int`.
   The code compares the length with the index as signed numbers (`cmp %rcx,%rbx; jle`).
 

@@ -20,9 +20,9 @@ The loop head is directive 19 (label `L_33`):
           cmp $0x1,%dil; jbe L_62      // value
           ...                          // overflow after 10 bytes
 
-The loop invariant at the loop head: rax is the buffer pointer, rbx the length,
-rcx the index `i`, rdx the shift `7 * i` and rsi the sum `sum` of the payloads read.
-The specification of the rest is `decodeFrom i sum (buf.drop i)`.
+The loop invariant at the loop head: rax holds the buffer pointer and rbx holds the length.
+rcx holds the index `i`, rdx holds the shift `7 * i`, and rsi holds the sum `sum` of the payloads that the loop read.
+The specification of the remaining bytes is `decodeFrom i sum (buf.drop i)`.
 -/
 
 open Machine Uvarint.Code
@@ -64,7 +64,7 @@ theorem ofNat_toBitVec_toNat (n : Nat) (h : n < 2 ^ 64) : (UInt64.ofNat n).toBit
 variable [Host]
 
 /-- One pass of the loop from the loop head. The hypothesis `more` is the claim at the next index.
-The four exits and the value return end in the final condition. -/
+The three early returns and the value return end in the final condition. A byte with the top bit set uses `more`. -/
 theorem Decode.iteration (k : Nat) (hk : uvarint.IsInfixAt Host.prog k) (hf : LabelsFresh uvarint k)
     (ra p rsp rbp r14 : UInt64) (buf : List UInt8) (R : DataMem → Prop) (hbound : buf.length < 2 ^ 63)
     (rcx rdx rsi rdi r8 r9 r10 r11 r12 r13 r15 : UInt64) (zmms : RegZmms) (flags : StatusFlags)
@@ -188,7 +188,7 @@ theorem Decode.iteration (k : Nat) (hk : uvarint.IsInfixAt Host.prog k) (hf : La
             subst h9'
             exact decodeFrom_tenth_large _ _ _ hb hgt1
 
-/-- The loop from the loop head ends in the final condition, at every index `i ≤ 10`.
+/-- The loop from the loop head ends in the final condition, at each index `i ≤ 10`.
 The proof is an induction on `10 - i`. -/
 theorem Decode.loop (k : Nat) (hk : uvarint.IsInfixAt Host.prog k) (hf : LabelsFresh uvarint k)
     (ra p rsp rbp r14 : UInt64) (buf : List UInt8) (R : DataMem → Prop) (hbound : buf.length < 2 ^ 63)

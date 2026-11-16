@@ -29,7 +29,7 @@ example : decode (List.replicate 9 0xFF ++ [0x01]) = .value 0xFFFFFFFFFFFFFFFF 1
 /-- The tenth byte can only be 0 or 1. The value 2 gives bit 64. -/
 example : decode (List.replicate 9 0xFF ++ [0x02]) = .overflow 10 := by decide
 
-/-- An eleventh byte is an overflow, also when it ends the value. -/
+/-- An eleventh byte is an overflow, also when that byte ends the value. -/
 example : decode (List.replicate 10 0x80 ++ [0x00]) = .overflow 11 := by decide
 
 /-- Ten bytes with the top bit set and no more bytes are an incomplete value. -/

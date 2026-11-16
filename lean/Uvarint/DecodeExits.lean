@@ -9,7 +9,7 @@ Directive indices of `Uvarint.Code.uvarint`:
 - 45 to 48: label, `xor %eax,%eax`, `mov $-0xb,%rbx`, `ret` (overflow after 11 bytes).
 - 49 to 52: label, `xor %eax,%eax`, `xor %ebx,%ebx`, `ret` (buffer too small).
 
-The loop does not write memory. So every path ends with the memory of the loop.
+The loop does not write memory. Thus each path ends with the memory of the loop.
 -/
 
 open Machine Uvarint.Code
@@ -17,7 +17,7 @@ variable [Host]
 
 namespace Uvarint
 
-/-- The memory from the second instruction on: the return address at `rsp`,
+/-- The memory after the first instruction: the return address at `rsp`,
 the spill slot that holds the buffer pointer `p`, the buffer and the frame `R`. -/
 def Decode.loopMemory (ra p rsp : UInt64) (buf : List UInt8) (R : DataMem → Prop) : DataMem → Prop :=
   Eq ((Int.toBytes 8 ra.toBitVec.toInt).At rsp.toBitVec)

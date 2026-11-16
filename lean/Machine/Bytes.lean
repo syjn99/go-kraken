@@ -1,12 +1,12 @@
--- Source: reference commit 320929dd, fv/kraken/lean/Machine/Bytes.lean.
+-- Source: `fv/kraken/lean/Machine/Bytes.lean` of methodical-ssz commit 320929dd.
 import Machine.Step
 
-/-! Byte facts for the stored values. -/
+/-! Byte facts for stored values. -/
 
 namespace Machine
 open Std
 
-/-- A chunk loaded at width `w = 8n` and stored back at the same width is unchanged. -/
+/-- Bytes that a load reads at the width `w = 8n` stay the same when a store writes them back at that width. -/
 theorem toBytes_ofInt_ofBytes (w n : Nat) (hw : w = 8 * n) (bs : List UInt8) (h : bs.length = n) :
     Int.toBytes n (BitVec.ofInt w (Int.ofBytes bs)).toInt = bs := by
   subst hw

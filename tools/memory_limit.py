@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-# Source: methodical-ssz commit 320929dd, fv/kraken/gen/tools/memory_limit.py (unchanged below this line).
+# Source: methodical-ssz commit 320929dd, fv/kraken/gen/tools/memory_limit.py.
+# Changes: without /proc (macOS), session_rss_ps reads the process table from `ps`. The /proc path is unchanged.
+# killpg also ignores EPERM, which macOS returns for a group that holds only zombies.
 """Copy of an earlier memory watchdog (not in this tree; that file is not edited).
 Change against the original: a per-process trigger no longer inflates the reported
 session peak (it used to set total = cap + 1 and add the other processes); it sets
@@ -34,8 +36,33 @@ peak = 0
 killed = False
 
 
+def session_rss_ps():
+    """The session sum from `ps`, for a system without /proc (macOS).
+    macOS `ps` prints 0 for the `sess` keyword, so os.getsid gives the session id.
+    `ps` has no anonymous RSS. The session sum therefore adds the full RSS of each process.
+    This sum also counts shared file pages, so it is larger than or equal to the /proc sum."""
+    global ppeak, ptrig
+    total = 0
+    out = subprocess.run(["ps", "-axo", "pid=,rss="], capture_output=True, text=True, check=True).stdout
+    for line in out.splitlines():
+        try:
+            pid, rss = (int(x) for x in line.split())
+            if os.getsid(pid) != sid:  # the process can end between ps and getsid
+                continue
+        except (OSError, ValueError):
+            continue
+        r1 = rss * 1024  # ps prints the RSS in KiB
+        ppeak = max(ppeak, r1)
+        if pcap is not None and r1 > pcap:
+            ptrig = True
+        total += r1
+    return total
+
+
 def session_rss():
     global ppeak, ptrig
+    if not os.path.isdir("/proc"):
+        return session_rss_ps()
     total = 0
     for p in os.listdir("/proc"):
         if not p.isdigit():
@@ -69,7 +96,7 @@ while child.poll() is None:
         killed = True
         try:
             os.killpg(sid, signal.SIGKILL)
-        except ProcessLookupError:
+        except (ProcessLookupError, PermissionError):  # macOS: EPERM when the group holds only zombies
             pass
         break
     time.sleep(0.1)
@@ -77,7 +104,7 @@ child.wait()
 # kill any leftover in the session
 try:
     os.killpg(sid, signal.SIGKILL)
-except ProcessLookupError:
+except (ProcessLookupError, PermissionError):  # macOS: EPERM when the group holds only zombies
     pass
 print(f"MEMCAP peak_session_rss={peak} bytes ({peak / 2**30:.2f} GiB) cap={cap} peak_process_rss={ppeak} "
       f"({ppeak / 2**30:.2f} GiB) per_proc_cap={pcap} killed={killed} per_proc_trigger={ptrig} child_rc={child.returncode}",

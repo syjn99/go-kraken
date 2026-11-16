@@ -219,8 +219,26 @@ def cut(text, thm):
     return body + [""] + tail, start + 1, end  # 1-based start, inclusive end
 
 
+def _ps_table():
+    """pid -> (ppid, sid, state) from `ps`, for a system without /proc (macOS).
+    macOS `ps` prints 0 for the `sess` keyword, so os.getsid gives the session id.
+    A process for which getsid fails has ended or is a zombie. It is left out, so it does not count as alive."""
+    t = {}
+    out = subprocess.run(["ps", "-axo", "pid=,ppid=,state="], capture_output=True, text=True, check=True).stdout
+    for line in out.splitlines():
+        f = line.split()
+        try:
+            pid = int(f[0])
+            t[pid] = (int(f[1]), os.getsid(pid), f[2][0])  # first state letter, `Z` for a zombie as in /proc
+        except (OSError, ValueError, IndexError):
+            continue
+    return t
+
+
 def _proc_table():
-    """pid -> (ppid, sid, state) from /proc (Linux)."""
+    """pid -> (ppid, sid, state) from /proc (Linux), else from `ps` (macOS)."""
+    if not os.path.isdir("/proc"):
+        return _ps_table()
     t = {}
     for p in os.listdir("/proc"):
         if not p.isdigit():

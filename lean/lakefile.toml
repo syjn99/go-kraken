@@ -1,0 +1,30 @@
+name = "gokraken"
+defaultTargets = ["Machine", "Uvarint"]
+
+[leanOptions]
+autoImplicit = false
+
+[[require]]
+name = "Kraken"
+git = "https://github.com/AeneasVerif/kraken"
+rev = "6064eecbb730a1152aa6ed891a155d3a92a4f298"
+
+# Machine: generic helpers on the Kraken machine model and the command that reads code files.
+# No module of this library reads a code file itself.
+[[lean_lib]]
+name = "Machine"
+globs = ["Machine.+"]
+
+# The converted assembly of the pilot target. `include_x64_code` reads these files.
+# The `needs` entry puts their contents into the input hash, so a changed file rebuilds the proofs.
+[[input_dir]]
+name = "uvarint_norm_S"
+path = "../targets/uvarint/build/norm"
+text = true
+filter = {extension = ["S"]}
+
+# Uvarint: the pilot target `encoding/binary.Uvarint` (Go 1.26.10, linux/amd64).
+[[lean_lib]]
+name = "Uvarint"
+globs = ["Uvarint.+"]
+needs = ["uvarint_norm_S"]

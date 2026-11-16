@@ -1,4 +1,7 @@
-import Kraken.AArch64.OmniSemantics
+module
+public import Kraken.AArch64.OmniSemantics
+
+@[expose] public section
 
 namespace Machine.Arm64
 

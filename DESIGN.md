@@ -1,7 +1,8 @@
 # Design: machine-code proofs for Go functions on Kraken
 
-This framework proves that the x86-64 machine code of a Go function agrees with a Lean specification.
-Kraken is a Lean 4 model of x86-64 instructions.
+This framework proves that AMD64 Go machine code agrees with a Lean specification.
+The ARM64 extension supplies checked infrastructure and partial proofs. Its complete Uvarint theorem remains unfinished.
+Kraken supplies separate instruction models for both architectures.
 The method comes from the directory `fv/kraken` of the repository `syjn99/methodical-ssz`.
 That directory applies the method to generated SSZ code.
 SSZ (Simple Serialize) is the serialization format of the Ethereum consensus layer.
@@ -12,6 +13,25 @@ The reference for the method is commit `320929dd` of the branch `fv-restructure`
 In this document, the reference is that commit.
 A path that starts with `fv/kraken/` is a path in the reference.
 The framework does not use the reference at build time.
+
+## Architecture separation
+
+Machine modules use `Machine/Amd64` and `Machine/Arm64`.
+Target modules use `Uvarint/Amd64` and `Uvarint/Arm64`.
+The specification, known-answer table, and Go source remain shared.
+The project has no generic backend interface.
+Kraken declares architecture types at the root, so a Lean module must not import both instruction models.
+The axioms gate imports each repository module in a separate process and combines their declaration records.
+
+AMD64 retains its manifest, artifact directory, program constant, and theorem names.
+ARM64 uses `manifest-arm64.json`, `build-arm64/`, and separate program and statement names.
+Lake tracks both assembly directories as inputs.
+The ARM64 converter handles four-byte instruction words and signed PC-relative branch offsets.
+The ARM64 link check requires exact reassembly bytes. It permits no alternate encoding or padding exception.
+
+The ARM64 statement uses the standalone function at its pinned ELF address.
+An arbitrary-host placement theorem and the complete loop proof remain unfinished.
+Read `targets/uvarint/arm64/README.md` for the instruction inventory, calling convention, and proof limits.
 
 ## Scope
 
@@ -80,7 +100,8 @@ The sha256 of the ELF binds all later results.
 
 ### ELF to Kraken program
 
-The converter changes the disassembly of each function into one labeled assembly file.
+The converter selects AMD64 or ARM64 from the manifest architecture.
+It changes the disassembly of each function into one labeled assembly file.
 A jump target becomes a label.
 An address relative to `rip` becomes a symbol with an offset.
 The Lean term `include_x64_code "<file>"` parses the file with the Kraken parser and gives a `Program` constant.
@@ -93,7 +114,7 @@ This repository does not have that command or a data extractor yet.
 The assembly files are Lake inputs of the library that reads them.
 Thus a changed file makes Lake build the proofs again.
 
-- Generic: `tools/convert_objdump.py` and the Lean command in `lean/Machine/Include.lean`.
+- Generic: `tools/convert_objdump.py` and the Lean command in `lean/Machine/Amd64/Include.lean`.
 - Target supplies: the function symbols in the manifest, and one `Code` module that includes them.
 - Specific to SSZ: the item tables of the link scripts (`fv/kraken/gen/checks/*link.py`) and the data module of the Prysm link set.
 
@@ -177,7 +198,7 @@ It builds a concrete host program from the converted function and the runtime mo
 Without a witness, the premises can be contradictory.
 For an input of variable length, the witnesses cover the empty input, one element and the maximum.
 
-- Generic: the statement rules, the witness host builder and its tactics (`lean/Machine/WitnessHost.lean`).
+- Generic: the statement rules, the witness host builder and its tactics (`lean/Machine/Amd64/WitnessHost.lean`).
 - Target supplies: the statements, the mapping from specification values to registers and memory, and the witnesses.
 - Specific to SSZ: the `Desc` type descriptions of EthLib, the Go value predicates of Prysm types, and the three theorem forms of a decoder. These forms are accept, reject and reject completeness.
 
@@ -243,7 +264,8 @@ The case field `inline` copies the modules between the code module and the theor
 Then no imported lemma or separate statement names the original program.
 A first error that names both programs is never a pass.
 
-The differential run executes Go on the host. It does not execute the amd64 machine code.
+The differential run compiles Go for the selected architecture and executes that comparison program in Docker.
+It does not execute either target ELF.
 It checks the specification against the Go behavior before the proof starts.
 It is not evidence for a theorem.
 
@@ -255,7 +277,8 @@ It is not evidence for a theorem.
 
 ### Manifest
 
-One JSON file, `targets/<name>/manifest.json`, holds all inputs of the build and the link stages.
+One manifest holds the build inputs for each target architecture.
+The AMD64 manifest uses `targets/<name>/manifest.json`. The ARM64 manifest uses `manifest-arm64.json` beside it.
 
 | Field | Content |
 | --- | --- |
@@ -328,7 +351,7 @@ The table gives each generic part and its source in the reference.
 | Build script | `fv/kraken/link/build.sh`, `fv/kraken/gen/prysm-elf.sh` (as a model) | Extracted as `tools/build_target.sh` |
 | Converter | `fv/kraken/link/convert_objdump.py` | Extracted |
 | Link check | `fv/kraken/link/check.py` | Extracted as `tools/link_check.py` |
-| Data extractor and data include command | `fv/kraken/link/data.py`, `fv/kraken/gen/checks/link_set.py`, `fv/kraken/lean/Machine/Include.lean` | Listed. Their item tables are specific to SSZ |
+| Data extractor and data include command | `fv/kraken/link/data.py`, `fv/kraken/gen/checks/link_set.py`, `fv/kraken/lean/Machine/Amd64/Include.lean` | Listed. Their item tables are specific to SSZ |
 | Machine lemmas, include command, witness host | `fv/kraken/lean/Machine/` | Extracted |
 | Runtime contracts and models | `fv/kraken/lean/Runtime/` | Listed. The pilot has no runtime call |
 | Stack guard branch lemmas and frame lemmas | `fv/kraken/lean/Machine/Flags.lean`, `fv/kraken/lean/Machine/Frame.lean`, `fv/kraken/lean/Codec/` (`lea_cmp_be_false`) | Listed. The pilot has no stack guard and no frame |

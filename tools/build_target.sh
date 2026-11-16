@@ -1,7 +1,7 @@
 #!/bin/sh
 # Build the ELF of one target in Docker, and write the inputs of the link check.
 # Usage: sh tools/build_target.sh <manifest>
-# The output directory is <directory of the manifest>/build.
+# AMD64 uses <manifest directory>/build. ARM64 uses <manifest directory>/build-arm64.
 # The script builds the ELF two times in two containers. The two ELF files must be equal.
 # On an error or a difference, the script stops with an exit status that is not 0.
 set -eu

@@ -1,7 +1,10 @@
-import Uvarint.Arm64.Program
-import Uvarint.Spec
-import Kraken.AArch64.OmniSemantics
-import Kraken.SeparationMem
+module
+public import Uvarint.Arm64.Program
+public import Uvarint.Spec
+public import Kraken.AArch64.OmniSemantics
+public import Kraken.SeparationMem
+
+@[expose] public section
 
 /-!
 The ARM64 statement uses the pinned ELF addresses and Go ABIInternal, the internal Go calling convention.

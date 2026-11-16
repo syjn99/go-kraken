@@ -1,3 +1,8 @@
+module
+
+
+@[expose] public section
+
 /-!
 # Specification of the unsigned variable-length integer decoder
 

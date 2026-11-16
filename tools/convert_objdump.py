@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
-"""Convert the output of `go tool objdump -gnu` into labeled AT&T assembly for Kraken.
+"""Convert the output of `go tool objdump -gnu` into labeled AMD64 or ARM64 assembly for Kraken.
 
-Usage: convert_objdump.py <objdump> <nm> <output directory> [--norm]
+Usage: convert_objdump.py <objdump> <nm> <output directory> [--norm] [--arch=amd64|arm64]
 
 <objdump> is the output of `go tool objdump -gnu -s <regexp> <elf>`.
 <nm> is the output of `go tool nm -size -sort address <elf>`.
 The converter writes one `<fn>.S` file for each function, and `all.S` with all functions in address order.
 
-The converter changes only the items that Kraken cannot read from objdump directly:
+ARM64 instruction words use little-endian ELF bytes. Relative branch offsets use the instruction address.
+The converter replaces ARM64 branch offsets with labels.
+The AMD64 converter changes these items:
 - An absolute jump or call target becomes a label. Inside the function, the label is `L_<fn>_<hexoff>`.
   Outside the function, the label is the symbol name.
 - `disp(%rip)` becomes `sym+off(%rip)`, for the symbol that holds the target.

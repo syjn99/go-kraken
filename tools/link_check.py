@@ -4,13 +4,13 @@
 Usage: link_check.py <build directory>
        link_check.py --selftest <build directory>
 
-The build directory is targets/<name>/build, after tools/build_target.sh.
-It holds target-amd64 (the ELF), target.objdump, target-amd64.nm, build-ids.txt, norm/*.S and data/*.data.
+The build directory is targets/<name>/build or build-arm64, after tools/build_target.sh.
+It holds target-<arch> (the ELF), target.objdump, target-<arch>.nm, build-ids.txt, norm/*.S and data/*.data.
 A target without data items has no data files.
 The check writes <build directory>/RESULT. The exit status is 1 on a failure.
 
 These are the checks:
-- Pins: the ELF, target.objdump and target-amd64.nm have the sha256 values of build-ids.txt.
+- Pins: the ELF, target.objdump and target-<arch>.nm have the sha256 values of build-ids.txt.
 - Code: for each function, the ELF symbol table gives the address and the size.
   The objdump instructions cover the range [addr, addr+size) without gaps.
   The objdump bytes are the ELF file bytes.
@@ -29,7 +29,8 @@ These are the checks:
   Each `word <s> <o>` is the 8-byte little-endian value address(s) + o at its position.
   Each byte of the file is printable ASCII or a newline, which is the rule of the data include command.
   Without data files, the check reports that the data set is empty.
-- Reassembly: clang --target=x86_64-linux-gnu assembles the .S instructions again at the original addresses.
+- Reassembly: clang uses the ELF architecture and assembles the .S instructions at their original addresses.
+  ARM64 requires exact bytes for every instruction. The exceptions below apply only to AMD64.
   The result must be the ELF bytes. For clang only, a direct `jmpq L` becomes `jmp L`.
   A difference is "encoding" if LLVM decodes both byte strings to the same text.
   A difference is "padding" if the converter changed the original nop form to `nop`.
@@ -135,7 +136,10 @@ def llvm_decode(elf, lo, hi):
         # Thus a tab follows its last byte, not a space (movabs in the Go 1.26.10 ELF).
         m = re.match(r"\s*([0-9a-f]+):\s((?:[0-9a-f]{2} ?)+?) *\t(.*)$", line)
         if m:
-            out[int(m[1], 16)] = (conv.instruction_bytes(m[2].replace(" ", ""), "arm64" if arm64 else "amd64"), re.sub(r"\s+", " ", m[3]).split(" <")[0].strip())
+            octets = bytes.fromhex(m[2])
+            if arm64 and " " not in m[2].strip():
+                octets = octets[::-1]  # LLVM can print one instruction word or four memory bytes.
+            out[int(m[1], 16)] = (octets, re.sub(r"\s+", " ", m[3]).split(" <")[0].strip())
     return out
 
 

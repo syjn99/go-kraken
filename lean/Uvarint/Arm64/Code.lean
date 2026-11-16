@@ -1,4 +1,7 @@
-import Machine.Arm64.Include
+module
+public import Machine.Arm64.Include
+
+@[expose] public section
 
 namespace Uvarint.Arm64.Code
 

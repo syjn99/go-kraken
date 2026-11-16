@@ -5,7 +5,7 @@ import Uvarint.Spec
 /-!
 # Statement of the main theorem of `encoding/binary.Uvarint`
 
-This file holds the statement only. The proof is in `Uvarint.DecodeResult`.
+This file holds the statement only. The proof is in `Uvarint.Amd64.DecodeResult`.
 
 Do not change this definition. A different statement needs a new name and a written reason.
 

@@ -1,8 +1,11 @@
-import Uvarint.Arm64.Statements
-import Uvarint.SpecKnownAnswers
-import Machine.Arm64.Run
-import Kraken.AArch64.Sep
-import Kraken.SeparationTactics
+module
+public import Uvarint.Arm64.Statements
+public import Uvarint.SpecKnownAnswers
+public import Machine.Arm64.Run
+public import Kraken.AArch64.Sep
+public import Kraken.SeparationTactics
+
+@[expose] public section
 
 namespace Uvarint.Arm64.Witness
 
@@ -39,13 +42,13 @@ def Matches (s : MachineData) (expected : UInt64 × UInt64) (t : MachineState) :
 instance (s : MachineData) (v : UInt64 × UInt64) (t : MachineState) : Decidable (Matches s v t) :=
   inferInstanceAs (Decidable (_ ∧ _ ∧ _ ∧ _))
 
-def check (buf : List UInt8) (expected : UInt64 × UInt64) : Bool :=
-  match Machine.Arm64.run Code.executable 0x40000 256 ⟨initial buf, 0x8d090⟩ with
+def check (e : Executable) (buf : List UInt8) (expected : UInt64 × UInt64) : Bool :=
+  match Machine.Arm64.run e 0x40000 256 ⟨initial buf, 0x8d090⟩ with
   | none => false
   | some t => decide (Matches (initial buf) expected t)
 
 /-- A concrete execution with complete state checks. -/
-def execution_statement (buf : List UInt8) (expected : UInt64 × UInt64) : Prop :=
-  Eventually (step1 Code.executable) (Matches (initial buf) expected) ⟨initial buf, 0x8d090⟩
+def execution_statement (e : Executable) (buf : List UInt8) (expected : UInt64 × UInt64) : Prop :=
+  Eventually (step1 e) (Matches (initial buf) expected) ⟨initial buf, 0x8d090⟩
 
 end Uvarint.Arm64.Witness

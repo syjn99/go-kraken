@@ -154,9 +154,24 @@ def parse_S(path):
     return out
 
 
+PINS = {"elf sha256": "target-amd64", "objdump sha256": "target.objdump", "nm sha256": "target-amd64.nm"}
+
+
+def check_pins(outdir):
+    """The ELF, the disassembly and the symbol listing must have the sha256 values of build-ids.txt."""
+    ids = {}
+    for line in (outdir / "build-ids.txt").read_text().splitlines():
+        k, _, v = line.partition(": ")
+        ids[k] = v
+    for k, f in PINS.items():
+        need(ids.get(k) == sha(outdir / f), f"{f}: sha256 {sha(outdir / f)} is not the pin {k} {ids.get(k)}")
+
+
 def run(outdir, log):
     outdir = pathlib.Path(outdir)
     elf = outdir / "target-amd64"
+    check_pins(outdir)
+    log("PASS pins: the ELF, the disassembly and the symbol listing have the sha256 values of build-ids.txt")
     b, secs, esyms = read_elf(elf)
     conv.CLEANED.clear()
     fns = conv.read_objdump(outdir / "target.objdump")
@@ -213,6 +228,10 @@ def run(outdir, log):
             else:
                 k += 1
         need(k == len(ins), f"{name}: .S has {k} instructions, objdump {len(ins)}")
+        defined = {d[1] for d in S if d[0] == "label"}
+        for d in S:
+            for ref in re.findall(re.escape(f"L_{name}_") + r"[0-9a-f]+", d[1]) if d[0] == "ins" else ():
+                need(ref in defined, f"{name}: the instruction {d[1]!r} names the label {ref}, which the .S does not define")
         hostlabels += [d[1] for d in S if d[0] == "label"]
         # (b) global references
         sins = [d[1] for d in S if d[0] == "ins"]
@@ -237,7 +256,7 @@ def run(outdir, log):
                 if o in nmonly:
                     kind += ", nm-only symbol"
                 externals.setdefault(g if not off else f"{g}+{off}", (t, ssec, kind))
-        per_fn.append((name, lo, hi, ins, sins))
+        per_fn.append((name, lo, hi, ins, sins, {d[1] for d in S if d[0] == "label"}))
         log(f"PASS (a) {name}: {len(ins)} instructions, {hi - lo} bytes, symtab/objdump/LLVM/ELF bytes and labels agree")
     # (b) report
     for g, (t, sec, kind) in sorted(externals.items(), key=lambda x: x[1][0]):
@@ -311,16 +330,16 @@ def run(outdir, log):
 def reassemble(per_fn, externals, esyms, b, secs, outdir):
     """One section, every function and external symbol at its ELF address via .org."""
     anchors = []
-    for name, lo, hi, ins, sins in per_fn:
-        anchors.append((lo, name, ins, sins))
+    for name, lo, hi, ins, sins, labels in per_fn:
+        anchors.append((lo, name, ins, sins, labels))
     fnames = {x[0] for x in per_fn}
     for g in externals:
         if g not in fnames:
-            anchors.append((esyms[externals[g]][0], g, None, None))
+            anchors.append((esyms[externals[g]][0], g, None, None, None))
     anchors.sort(key=lambda x: (x[0], x[2] is not None))
     base = anchors[0][0]
     lines = [".text", ".att_syntax", ".code64"]
-    for a, name, ins, sins in anchors:
+    for a, name, ins, sins, labels in anchors:
         lines.append(f".org {a - base:#x}")
         if ins is None:
             lines.append(f"{name}:")
@@ -330,7 +349,10 @@ def reassemble(per_fn, externals, esyms, b, secs, outdir):
             lines.append(f".org {ia - base:#x}")
             off = ia - a
             lab = f"L_{name}_{off:x}"
-            lines.append(f"{lab}:")
+            # Only the labels of the .S text. A jump to a label that the text does not define
+            # then stays a relocation, and the check fails.
+            if lab in labels:
+                lines.append(f"{lab}:")
             # spelling only: LLVM's assembler takes `jmp L`, not `jmpq L`, for a direct jump
             lines.append("  " + re.sub(r"^jmpq (?=[A-Za-z_])", "jmp ", st))
     with tempfile.TemporaryDirectory() as d:
@@ -346,7 +368,7 @@ def reassemble(per_fn, externals, esyms, b, secs, outdir):
         text = next(s for s in osecs if s["name"] == ".text")
         body = ob[text["off"]:text["off"] + text["size"]]
     diffs = []
-    for name, lo, hi, ins, sins in per_fn:
+    for name, lo, hi, ins, sins, _ in per_fn:
         for (a, n, att), st in zip(ins, sins):
             orig = elf_bytes(b, secs, a, n)
             new = body[a - base:a - base + n]
@@ -408,6 +430,15 @@ def main(outdir):
     return 0
 
 
+def repin(t):
+    """Write the sha256 values of the changed files of a copy into its build-ids.txt, so that a later check fails."""
+    p = t / "build-ids.txt"
+    s = p.read_text()
+    for k, f in PINS.items():
+        s = re.sub(rf"^{k}: .*$", f"{k}: {sha(t / f)}", s, flags=re.M)
+    p.write_text(s)
+
+
 def selftest(outdir):
     """Sensitivity: mutated inputs must fail; an unchanged copy must pass.
     Each case finds its place in the link set. A case that needs a kind of input that the link set
@@ -463,6 +494,7 @@ def selftest(outdir):
         # 4. objdump line without // (converter must fail)
         t = copy(); p = t / "target.objdump"
         s = p.read_text(); assert "// " in s; p.write_text(re.sub(r"// [^\n]*", "", s, count=1))
+        repin(t)
         cases.append(("objdump line without //", t, False))
         # 5. global reference with the wrong offset
         f = first(lambda q: "(%rip)" in q.read_text(), fn_files)
@@ -522,6 +554,7 @@ def selftest(outdir):
             ia = at + pos
             o = next(s["off"] + ia - s["addr"] for s in es if s["typ"] == 1 and s["addr"] <= ia < s["addr"] + s["size"])
             struct.pack_into("<Q", e, o, struct.unpack_from("<Q", e, o)[0] + 8); p.write_bytes(bytes(e))
+            repin(t)
             cases.append(("ELF word of a data file changed", t, False))
         else:
             cases.append(("ELF word of a data file changed", None, "the data set has no word line (empty data set)"))
@@ -532,7 +565,21 @@ def selftest(outdir):
             cases.append(("data file with a carriage return", t, False))
         else:
             cases.append(("data file with a carriage return", None, "the data set is empty"))
-        # 11. unchanged copy passes
+        # 11. a jump target label is removed from the function file and from all.S
+        f = first(lambda q: lab(q) is not None, fn_files)
+        if f:
+            t = copy()
+            name = f.read_text().splitlines()[lab(f)]
+            for p in (t / "norm" / f.name, t / "norm" / "all.S"):
+                ls = p.read_text().split("\n"); ls.remove(name); p.write_text("\n".join(ls))
+            cases.append(("jump target label removed", t, False))
+        else:
+            cases.append(("jump target label removed", None, "no local label in a function file"))
+        # 12. the ELF pin of build-ids.txt is wrong
+        t = copy(); p = t / "build-ids.txt"
+        p.write_text(re.sub(r"^elf sha256: .*$", "elf sha256: " + "0" * 64, p.read_text(), flags=re.M))
+        cases.append(("wrong ELF pin", t, False))
+        # 13. unchanged copy passes
         t = copy()
         cases.append(("unchanged copy", t, True))
         ok = True

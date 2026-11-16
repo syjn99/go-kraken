@@ -1,3 +1,4 @@
+PASS pins: the ELF, the disassembly and the symbol listing have the sha256 values of build-ids.txt
 PASS (a) encoding_binary.Uvarint: 47 instructions, 140 bytes, symtab/objdump/LLVM/ELF bytes and labels agree
 PASS (c) all.S: 6 labels, each defined once; 0 external references not defined in all.S; 0 calls to target functions at their entry: []
 PASS (e) all.S: 53 directives equal the 1 function files in order
@@ -8,4 +9,4 @@ elf sha256 d98344b2ae3332ec11e85b2cc3eace23abd0f87a6f3d5ad2150f03e5d1e0c091
 S sha256 1d92a2bf82c751c0aa4e864d0d3474825c56a44821a631701ecd45237b00bad4 all.S
 S sha256 1d92a2bf82c751c0aa4e864d0d3474825c56a44821a631701ecd45237b00bad4 encoding_binary.Uvarint.S
 PASS all
-BUNDLE sha256 81afa10acb89f335d7f54519372d7dc72ff299a369694d1a4469af1f830aa80c
+BUNDLE sha256 ce4729055a628929194435567a43a1207f7a5f748aaa7d2686eed4cc87762c0a

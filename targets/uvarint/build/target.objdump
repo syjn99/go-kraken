@@ -1,0 +1,48 @@
+TEXT encoding/binary.Uvarint(SB) encoding/binary/varint.go
+  varint.go:68		0x482ce0		4889442408		MOVQ AX, 0x8(SP)                     // mov %rax,0x8(%rsp)		
+  varint.go:71		0x482ce5		31c9			XORL CX, CX                          // xor %ecx,%ecx			
+  varint.go:71		0x482ce7		31d2			XORL DX, DX                          // xor %edx,%edx			
+  varint.go:71		0x482ce9		31f6			XORL SI, SI                          // xor %esi,%esi			
+  varint.go:71		0x482ceb		eb26			JMP 0x482d13                         // jmp 0x482d13			
+  varint.go:83		0x482ced		83e77f			ANDL $0x7f, DI                       // and $0x7f,%edi			
+  varint.go:71		0x482cf0		4989c8			MOVQ CX, R8                          // mov %rcx,%r8			
+  varint.go:83		0x482cf3		4889d1			MOVQ DX, CX                          // mov %rdx,%rcx			
+  varint.go:83		0x482cf6		48d3e7			SHLQ CL, DI                          // shl %cl,%rdi			
+  varint.go:71		0x482cf9		49ffc0			INCQ R8                              // inc %r8				
+  varint.go:84		0x482cfc		4c8d4907		LEAQ 0x7(CX), R9                     // lea 0x7(%rcx),%r9		
+  varint.go:83		0x482d00		4883f940		CMPQ CX, $0x40                       // cmp $0x40,%rcx			
+  varint.go:83		0x482d04		4d19d2			SBBQ R10, R10                        // sbb %r10,%r10			
+  varint.go:83		0x482d07		4c21d7			ANDQ R10, DI                         // and %r10,%rdi			
+  varint.go:83		0x482d0a		4809fe			ORQ DI, SI                           // or %rdi,%rsi			
+  varint.go:71		0x482d0d		4c89c1			MOVQ R8, CX                          // mov %r8,%rcx			
+  varint.go:71		0x482d10		4c89ca			MOVQ R9, DX                          // mov %r9,%rdx			
+  varint.go:71		0x482d13		4839cb			CMPQ BX, CX                          // cmp %rcx,%rbx			
+  varint.go:71		0x482d16		7e4f			JLE 0x482d67                         // jle 0x482d67			
+  varint.go:71		0x482d18		0fb63c08		MOVZX 0(AX)(CX*1), DI                // movzbl (%rax,%rcx,1),%edi	
+  varint.go:71		0x482d1c		0f1f4000		NOPL 0(AX)                           // nopl (%rax)			
+  varint.go:72		0x482d20		4883f90a		CMPQ CX, $0xa                        // cmp $0xa,%rcx			
+  varint.go:72		0x482d24		7437			JE 0x482d5d                          // je 0x482d5d			
+  varint.go:77		0x482d26		4080ff80		CMPL DI, $0x80                       // cmp $0x80,%dil			
+  varint.go:77		0x482d2a		73c1			JAE 0x482ced                         // jae 0x482ced			
+  varint.go:78		0x482d2c		4883f909		CMPQ CX, $0x9                        // cmp $0x9,%rcx			
+  varint.go:78		0x482d30		7510			JNE 0x482d42                         // jne 0x482d42			
+  varint.go:78		0x482d32		4080ff01		CMPL DI, $0x1                        // cmp $0x1,%dil			
+  varint.go:78		0x482d36		760a			JBE 0x482d42                         // jbe 0x482d42			
+  varint.go:79		0x482d38		31c0			XORL AX, AX                          // xor %eax,%eax			
+  varint.go:79		0x482d3a		48c7c3f6ffffff		MOVQ $-0xa, BX                       // mov $-0xa,%rbx			
+  varint.go:79		0x482d41		c3			RET                                  // retq				
+  varint.go:71		0x482d42		4889c8			MOVQ CX, AX                          // mov %rcx,%rax			
+  varint.go:81		0x482d45		4889d1			MOVQ DX, CX                          // mov %rdx,%rcx			
+  varint.go:81		0x482d48		48d3e7			SHLQ CL, DI                          // shl %cl,%rdi			
+  varint.go:81		0x482d4b		488d5801		LEAQ 0x1(AX), BX                     // lea 0x1(%rax),%rbx		
+  varint.go:81		0x482d4f		4883f940		CMPQ CX, $0x40                       // cmp $0x40,%rcx			
+  varint.go:81		0x482d53		4819c0			SBBQ AX, AX                          // sbb %rax,%rax			
+  varint.go:81		0x482d56		4821f8			ANDQ DI, AX                          // and %rdi,%rax			
+  varint.go:81		0x482d59		4809f0			ORQ SI, AX                           // or %rsi,%rax			
+  varint.go:81		0x482d5c		c3			RET                                  // retq				
+  varint.go:75		0x482d5d		31c0			XORL AX, AX                          // xor %eax,%eax			
+  varint.go:75		0x482d5f		48c7c3f5ffffff		MOVQ $-0xb, BX                       // mov $-0xb,%rbx			
+  varint.go:75		0x482d66		c3			RET                                  // retq				
+  varint.go:86		0x482d67		31c0			XORL AX, AX                          // xor %eax,%eax			
+  varint.go:86		0x482d69		31db			XORL BX, BX                          // xor %ebx,%ebx			
+  varint.go:86		0x482d6b		c3			RET                                  // retq				

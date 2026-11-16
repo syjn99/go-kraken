@@ -1,0 +1,4 @@
+# The ELF of a target is not tracked. tools/build_target.sh builds it again.
+targets/*/build/target-amd64
+# The second build of tools/build_target.sh. It stays only when the two builds differ.
+targets/*/build/second-build/

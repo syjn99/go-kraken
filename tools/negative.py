@@ -9,7 +9,7 @@ Usage. A run is a Lean job. The working directory does not matter.
   negative.py --selftest-timeout                   checks the cleanup after a timeout, with a fake child process
 
 cases.json is a list of cases. Each case has these fields:
-- "id", "module" (a path under lean/, for example "Uvarint/DecodeLoop.lean"), "theorem".
+- "id", "module" (a path under lean/, for example "Uvarint/Amd64/DecodeLoop.lean"), "theorem".
 - "kind": "code", "statement" or "control".
 - For "code": "code_definition" (the Lean name of the included program, for example "uvarint"),
   "assembly" (the path of the .S file from the repository root), "old" and "new".
@@ -349,8 +349,19 @@ def run_capped(argv, cwd, timeout):
 
 
 def module_name(path):
-    """The module name of a path, for example `Uvarint.Statements` for `Uvarint/Statements.lean`."""
+    """The module name of a path, for example `Uvarint.Amd64.Statements` for `Uvarint/Amd64/Statements.lean`."""
     return path[:-len(".lean")].replace("/", ".")
+
+
+def import_names(line):
+    """Read Lean imports without treating visibility modifiers as module names."""
+    words = line.split("--", 1)[0].split()
+    while words and words[0] in ("public", "meta"):
+        words = words[1:]
+    if not words or words[0] != "import":
+        return []
+    words = words[1:]
+    return words[1:] if words and words[0] == "all" else words
 
 
 def import_closure(mods):
@@ -362,7 +373,7 @@ def import_closure(mods):
         if m in seen or not f.exists():
             continue
         seen.add(m)
-        todo += [x for l in f.read_text().split("\n") if l.startswith("import ") for x in l.split()[1:]]
+        todo += [x for l in f.read_text().split("\n") for x in import_names(l)]
     return seen
 
 
@@ -417,7 +428,7 @@ def build_mutant(c, sdir):
     head = (lo - 1) - command_start(lines, lo - 1)
     extra = [f"import {m}" for m in c.get("mutant_imports", [])]
     if extra:  # after the last import line of the copy. The range of the theorem moves with these lines.
-        k = max(i for i, l in enumerate(lines) if l.startswith("import ")) + 1
+        k = max(i for i, l in enumerate(lines) if import_names(l)) + 1
         lines = lines[:k] + extra + lines[k:]
         lo += len(extra)
         hi += len(extra)
@@ -444,12 +455,18 @@ def build_mutant(c, sdir):
             S2 = S
         name = c["code_definition"]
         tl = text.split("\n")
-        k = max(i for i, l in enumerate(tl) if l.startswith("import ")) + 1
+        k = max(i for i, l in enumerate(tl) if import_names(l)) + 1
         rest, n = re.subn(rf"(?<![A-Za-z0-9_.']){re.escape(name)}(?![A-Za-z0-9_'])", name + "Mut", "\n".join(tl[k:]))
         if not n:
             raise ValueError(f"{c['id']}: code_definition {name} is not used after the imports")
         ns = code_namespace_of(c)
-        decl = f'def {ns}.{name}Mut : Program := include_x64_code "{sdir / "mut.S"}"'
+        arch = pathlib.PurePosixPath(c["module"]).parts[1]
+        readers = {"Amd64": "include_amd64_code", "Arm64": "include_arm64_code"}
+        if arch not in readers:
+            raise ValueError(f"{c['id']}: the module has no supported architecture")
+        reader = readers[arch]
+        visibility = "public " if "module" in tl[:k] else ""
+        decl = f'{visibility}def {ns}.{name}Mut : Program := {reader} "{sdir / "mut.S"}"'
         text = "\n".join(tl[:k] + ["", decl] + [rest])
         lo += 2
         hi += 2
@@ -577,8 +594,7 @@ def imports_of(modules):
     mods = set()
     for m in modules:
         for l in (LEAN / m).read_text().split("\n"):
-            if l.startswith("import "):
-                mods.update(l.split()[1:])
+            mods.update(import_names(l))
     return sorted(mods)
 
 
@@ -625,6 +641,11 @@ def main(cases, work, out, *ids):
 
 def selftest():
     """Fixtures of the classifier and the case range. For example, a heartbeat timeout and a wall timeout are never a pass."""
+    assert import_names("import A B") == ["A", "B"]
+    assert import_names("public import A") == ["A"]
+    assert import_names("import all A -- body access") == ["A"]
+    assert import_names("public meta import A") == ["A"]
+    assert import_names("module") == []
     base = dict(kind="statement", range=[1, 9], rc=1, killed=False, timeout=False)
     fx = [("hb", dict(error_lines=[5], first_error="x:5:1: error: (deterministic) timeout at `whnf`"), "timeout_heartbeat"),
           ("in", dict(error_lines=[5], first_error="x:5:1: error: type mismatch"), "inside"),

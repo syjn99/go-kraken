@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
-"""Convert the output of `go tool objdump -gnu` into labeled AT&T assembly for Kraken.
+"""Convert the output of `go tool objdump -gnu` into labeled AMD64 or ARM64 assembly for Kraken.
 
-Usage: convert_objdump.py <objdump> <nm> <output directory> [--norm]
+Usage: convert_objdump.py <objdump> <nm> <output directory> [--norm] [--arch=amd64|arm64]
 
 <objdump> is the output of `go tool objdump -gnu -s <regexp> <elf>`.
 <nm> is the output of `go tool nm -size -sort address <elf>`.
 The converter writes one `<fn>.S` file for each function, and `all.S` with all functions in address order.
 
-The converter changes only the items that Kraken cannot read from objdump directly:
+ARM64 instruction words use little-endian ELF bytes. Relative branch offsets use the instruction address.
+The converter replaces ARM64 branch offsets with labels.
+The AMD64 converter changes these items:
 - An absolute jump or call target becomes a label. Inside the function, the label is `L_<fn>_<hexoff>`.
   Outside the function, the label is the symbol name.
 - `disp(%rip)` becomes `sym+off(%rip)`, for the symbol that holds the target.
@@ -76,7 +78,16 @@ def sym_at(syms, addr):
     return best or near
 
 
-def read_objdump(path):
+def instruction_bytes(hexword, arch):
+    raw = bytes.fromhex(hexword)
+    if arch == "arm64":
+        if len(raw) != 4:
+            raise SystemExit("an ARM64 instruction must have four bytes")
+        return raw[::-1]
+    return raw
+
+
+def read_objdump(path, arch="amd64"):
     fns, cur = [], None
     for line in open(path):
         if line.startswith("TEXT "):
@@ -89,7 +100,7 @@ def read_objdump(path):
         if not m or cur is None:
             raise SystemExit(f"the objdump line does not have the GNU form with a // part: {line.rstrip()!r}")
         att = re.sub(r"\s+", " ", m.group(3)).strip()
-        a, n = int(m.group(1), 16), len(m.group(2)) // 2
+        a, n = int(m.group(1), 16), len(instruction_bytes(m.group(2), arch))
         if cur["ins"] and cur["ins"][-1][0] + cur["ins"][-1][1] != a:
             raise SystemExit(f"{cur['name']} has an address gap before {a:#x}")
         cur["ins"].append((a, n, att))
@@ -120,7 +131,22 @@ def signed_disp32(att):
     return DISP32.sub(lambda m: f"-0x{(1 << 32) - int(m.group(1), 16):x}", att)
 
 
-def convert(fn, syms, norm):
+ARM_BRANCH = re.compile(r"^(b(?:\.[a-z]+)?|bl|cbn?z [wx][0-9]+,|tbn?z [wx][0-9]+, #[0-9]+,) \.\+0x([0-9a-f]+)$")
+
+
+def branch(att, addr, arch):
+    m = (ARM_BRANCH if arch == "arm64" else BRANCH).match(att)
+    if m is None:
+        return None
+    target = int(m[2], 16)
+    if arch == "arm64":
+        if target >= 2 ** 63:
+            target -= 2 ** 64
+        target += addr
+    return m[1], target
+
+
+def convert(fn, syms, norm, arch="amd64"):
     name = clean(fn["name"])
     lo = fn["ins"][0][0]
     hi = fn["ins"][-1][0] + fn["ins"][-1][1]
@@ -128,19 +154,19 @@ def convert(fn, syms, norm):
     starts = {a for a, _, _ in fn["ins"]}
     targets, body = set(), []
     for addr, ln, att in fn["ins"]:
-        m = BRANCH.match(att)
+        m = branch(att, addr, arch)
         if m:
-            t = int(m.group(2), 16)
+            t = m[1]
             if lo <= t < hi:
                 if t not in starts:
                     raise SystemExit(f"{name} has a branch into the middle of an instruction: {t:#x}")
                 targets.add(t)
-                att = f"{m.group(1)} {lab(t)}"
+                att = f"{m[0]} {lab(t)}"
             else:
                 s, off = sym_at(syms, t)
                 if off:
                     raise SystemExit(f"a branch goes into the middle of {s}")
-                att = f"{m.group(1)} {clean(s)}"
+                att = f"{m[0]} {clean(s)}"
         else:
             r = RIP.search(att)
             if r:
@@ -164,10 +190,13 @@ def convert(fn, syms, norm):
 def main():
     objdump, nm, outdir = sys.argv[1:4]
     norm = "--norm" in sys.argv
+    arch = next((a.split("=", 1)[1] for a in sys.argv[4:] if a.startswith("--arch=")), "amd64")
+    if arch not in ("amd64", "arm64"):
+        raise SystemExit(f"unsupported architecture: {arch}")
     syms = read_nm(nm)
     allS = []
-    for fn in read_objdump(objdump):
-        name, text = convert(fn, syms, norm)
+    for fn in read_objdump(objdump, arch):
+        name, text = convert(fn, syms, norm, arch)
         open(f"{outdir}/{name}.S", "w").write(text)
         allS.append(text)
     open(f"{outdir}/all.S", "w").write("".join(allS))
@@ -204,6 +233,13 @@ def selftest():
         raise AssertionError("the converter accepted two names with the same clean name")
     except SystemExit:
         pass
+    assert instruction_bytes("f90007e0", "arm64") == bytes.fromhex("e00700f9")
+    arm = {"name": "pkg.arm", "ins": [(0x100, 4, "b .+0x8"),
+                                       (0x104, 4, "b.cs .+0xfffffffffffffffc"), (0x108, 4, "ret")]}
+    text = convert(arm, syms, False, "arm64")[1]
+    assert "b L_pkg.arm_8" in text and "b.cs L_pkg.arm_0" in text, text
+    assert branch("cbz x0, .+0x8", 0x100, "arm64") == ("cbz x0,", 0x108)
+    assert branch("tbz w0, #7, .+0x8", 0x100, "arm64") == ("tbz w0, #7,", 0x108)
     CLEANED.clear()
 
 

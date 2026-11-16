@@ -1,7 +1,8 @@
 # Design: machine-code proofs for Go functions on Kraken
 
-This framework proves that the x86-64 machine code of a Go function agrees with a Lean specification.
-Kraken is a Lean 4 model of x86-64 instructions.
+This framework proves that AMD64 Go machine code agrees with a Lean specification.
+The ARM64 extension supplies checked infrastructure and partial proofs. Its complete Uvarint theorem remains unfinished.
+Kraken supplies separate instruction models for both architectures.
 The method comes from the directory `fv/kraken` of the repository `syjn99/methodical-ssz`.
 That directory applies the method to generated SSZ code.
 SSZ (Simple Serialize) is the serialization format of the Ethereum consensus layer.
@@ -12,6 +13,27 @@ The reference for the method is commit `320929dd` of the branch `fv-restructure`
 In this document, the reference is that commit.
 A path that starts with `fv/kraken/` is a path in the reference.
 The framework does not use the reference at build time.
+
+## Architecture separation
+
+Machine modules use `Machine/Amd64` and `Machine/Arm64`.
+Target modules use `Uvarint/Amd64` and `Uvarint/Arm64`.
+The specification, known-answer table, and Go source remain shared.
+The project has no generic backend interface.
+Kraken declares architecture types at the root, so a Lean module must not import both instruction models.
+The axioms gate imports each repository module in a separate process and combines their declaration records.
+
+Both architectures use `targets/<name>/<arch>/manifest.json`, `build/`, and `tests/`.
+Both build directories use `target` and `target.nm`.
+Machine definitions use `Machine.<Arch>`, and target definitions use `Uvarint.<Arch>`.
+Architecture-specific axiom lists use the suffix `-amd64` or `-arm64`.
+Lake tracks both assembly directories as inputs.
+The ARM64 converter handles four-byte instruction words and signed PC-relative branch offsets.
+The ARM64 link check requires exact reassembly bytes. It permits no alternate encoding or padding exception.
+
+The ARM64 statement uses the standalone function at its pinned ELF address.
+An arbitrary-host placement theorem and the complete loop proof remain unfinished.
+Read `targets/uvarint/arm64/README.md` for the instruction inventory, calling convention, and proof limits.
 
 ## Scope
 
@@ -80,10 +102,12 @@ The sha256 of the ELF binds all later results.
 
 ### ELF to Kraken program
 
-The converter changes the disassembly of each function into one labeled assembly file.
+The converter selects AMD64 or ARM64 from the manifest architecture.
+It changes the disassembly of each function into one labeled assembly file.
 A jump target becomes a label.
 An address relative to `rip` becomes a symbol with an offset.
-The Lean term `include_x64_code "<file>"` parses the file with the Kraken parser and gives a `Program` constant.
+The terms `include_amd64_code "<file>"` and `include_arm64_code "<file>"` select the corresponding Kraken parser.
+Each term gives a `Program` constant.
 No person writes an instruction, a byte or an address by hand.
 
 A data item of the ELF is, for example, a constant table or a string.
@@ -93,7 +117,7 @@ This repository does not have that command or a data extractor yet.
 The assembly files are Lake inputs of the library that reads them.
 Thus a changed file makes Lake build the proofs again.
 
-- Generic: `tools/convert_objdump.py` and the Lean command in `lean/Machine/Include.lean`.
+- Generic: `tools/convert_objdump.py` and the Lean command in `lean/Machine/Amd64/Include.lean`.
 - Target supplies: the function symbols in the manifest, and one `Code` module that includes them.
 - Specific to SSZ: the item tables of the link scripts (`fv/kraken/gen/checks/*link.py`) and the data module of the Prysm link set.
 
@@ -177,7 +201,7 @@ It builds a concrete host program from the converted function and the runtime mo
 Without a witness, the premises can be contradictory.
 For an input of variable length, the witnesses cover the empty input, one element and the maximum.
 
-- Generic: the statement rules, the witness host builder and its tactics (`lean/Machine/WitnessHost.lean`).
+- Generic: the statement rules, the witness host builder and its tactics (`lean/Machine/Amd64/WitnessHost.lean`).
 - Target supplies: the statements, the mapping from specification values to registers and memory, and the witnesses.
 - Specific to SSZ: the `Desc` type descriptions of EthLib, the Go value predicates of Prysm types, and the three theorem forms of a decoder. These forms are accept, reject and reject completeness.
 
@@ -243,7 +267,8 @@ The case field `inline` copies the modules between the code module and the theor
 Then no imported lemma or separate statement names the original program.
 A first error that names both programs is never a pass.
 
-The differential run executes Go on the host. It does not execute the amd64 machine code.
+The differential run compiles Go for the selected architecture and executes that comparison program in Docker.
+It does not execute either target ELF.
 It checks the specification against the Go behavior before the proof starts.
 It is not evidence for a theorem.
 
@@ -255,7 +280,10 @@ It is not evidence for a theorem.
 
 ### Manifest
 
-One JSON file, `targets/<name>/manifest.json`, holds all inputs of the build and the link stages.
+One manifest holds the build inputs for each target architecture.
+Each architecture manifest uses `targets/<name>/<arch>/manifest.json`.
+Its directory name must match GOARCH, and its parent directory must match the target name.
+The main package path is relative to that architecture directory.
 
 | Field | Content |
 | --- | --- |
@@ -281,7 +309,7 @@ The names follow the role names of the reference (`fv/kraken/lean/README.md`), w
 | Module | Obligation |
 | --- | --- |
 | `Spec` | The specification, or an import of it. The header names its source and commit |
-| `Code` | One program constant for each function of the manifest, made with `include_x64_code` |
+| `Code` | One program constant for each function of the manifest, made with the architecture include command |
 | `Data` | One definition for each data item of the manifest. Not necessary when the list is empty |
 | `Statements` | The main statements, and the mapping from specification values to registers and memory |
 | Proof modules | One theorem for each statement |
@@ -301,19 +329,20 @@ Never write "complete" for a function that has a path in its list of paths not p
 
 ```text
 <repository root>
-  DESIGN.md              this document
-  README.md              the commands that work
-  FINDINGS.md            findings, stops and paths not proved
-  tools/                 build, conversion, link check, axioms gate, negative test runner
-  lean/                  one Lake project
-    Machine/             machine lemmas, include command, witness host (generic)
-    Uvarint/             the pilot target
-  targets/
-    uvarint/
-      manifest.json
-      main/              the main package of the build
-      build/             build identifiers, disassembly, symbol listing, converted code, link result
-      differential/      the differential run
+  README.md, DESIGN.md, FINDINGS.md
+  tools/
+    axioms-lists/uvarint-amd64.lean
+    axioms-lists/uvarint-arm64.lean
+  lean/
+    Machine/Amd64/, Machine/Arm64/
+    Uvarint/Amd64/, Uvarint/Arm64/
+    Uvarint/Spec.lean, Uvarint/SpecKnownAnswers.lean
+  targets/uvarint/
+    main/, differential/
+    amd64/
+      README.md, manifest.json, build/, tests/
+    arm64/
+      README.md, manifest.json, build/, tests/
 ```
 
 One Lake project holds the generic library and each target library.

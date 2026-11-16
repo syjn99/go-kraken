@@ -1,0 +1,31 @@
+[
+  {
+    "id": "arm64-return-control",
+    "kind": "control",
+    "module": "Uvarint/Arm64/Return.lean",
+    "theorem": "Uvarint.Arm64.returns",
+    "code_definition": "uvarint",
+    "code_namespace": "Uvarint.Arm64.Code",
+    "assembly": "targets/uvarint/arm64/build/norm/encoding_binary.Uvarint.S"
+  },
+  {
+    "id": "arm64-return-code-x30-to-x29",
+    "kind": "code",
+    "module": "Uvarint/Arm64/Return.lean",
+    "theorem": "Uvarint.Arm64.returns",
+    "code_definition": "uvarint",
+    "code_namespace": "Uvarint.Arm64.Code",
+    "assembly": "targets/uvarint/arm64/build/norm/encoding_binary.Uvarint.S",
+    "line": 46,
+    "old": "  ret",
+    "new": "  ret x29"
+  },
+  {
+    "id": "arm64-return-statement-x30-to-x29",
+    "kind": "statement",
+    "module": "Uvarint/Arm64/Return.lean",
+    "theorem": "Uvarint.Arm64.returns",
+    "old": "return_statement (layout uvarint uvarint) .X30 := by",
+    "new": "return_statement (layout uvarint uvarint) .X29 := by"
+  }
+]

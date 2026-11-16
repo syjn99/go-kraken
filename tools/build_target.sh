@@ -1,7 +1,7 @@
 #!/bin/sh
 # Build the ELF of one target in Docker, and write the inputs of the link check.
 # Usage: sh tools/build_target.sh <manifest>
-# The output directory is <directory of the manifest>/build.
+# Each architecture uses <manifest directory>/build.
 # The script builds the ELF two times in two containers. The two ELF files must be equal.
 # On an error or a difference, the script stops with an exit status that is not 0.
 set -eu
@@ -40,7 +40,6 @@ WORD = re.compile(r"[A-Za-z0-9_.,=/+-]+")
 need(m.get("schema") == "go-kraken.target/1", "schema is not go-kraken.target/1")
 name = m.get("name")
 need(isinstance(name, str) and re.fullmatch(r"[a-z0-9][a-z0-9_-]*", name), "the name is not valid")
-need(os.path.basename(os.path.dirname(os.path.abspath(path))) == name, "the name of the manifest directory is not the name")
 src = m.get("source")
 need(isinstance(src, dict), "source is not an object")
 if src.get("kind") == "go-standard-library":
@@ -81,7 +80,11 @@ for d in items:
          "a data item needs an id, a symbol and a kind")
 if items:
     fail("data_items: this script has no data extractor", 2)
+need(env.get("GOOS") == "linux" and env.get("GOARCH") in ("amd64", "arm64"), "only linux/amd64 and linux/arm64 are supported")
+need(os.path.basename(os.path.dirname(path)) == env["GOARCH"], "the manifest directory does not match GOARCH")
+need(os.path.basename(os.path.dirname(os.path.dirname(path))) == name, "the target directory does not match the name")
 out = {
+    "ARCH": env["GOARCH"],
     "NAME": name,
     "IMAGE": go["docker_image"],
     "GO_VERSION": go["version"],
@@ -123,17 +126,17 @@ sha() {
 }
 
 # shellcheck disable=SC2086
-go_run "$build" go build $FLAGS $tagarg -o /out/target-amd64 .
+go_run "$build" go build $FLAGS $tagarg -o /out/target .
 # shellcheck disable=SC2086
-go_run "$second" go build $FLAGS $tagarg -o /out/target-amd64 .
-elf_sha=$(sha "$build/target-amd64")
-second_sha=$(sha "$second/target-amd64")
+go_run "$second" go build $FLAGS $tagarg -o /out/target .
+elf_sha=$(sha "$build/target")
+second_sha=$(sha "$second/target")
 if [ "$elf_sha" != "$second_sha" ]; then
   echo "the two builds are different: $elf_sha and $second_sha" >&2
   echo "the second ELF stays in $second" >&2
   exit 1
 fi
-rm "$second/target-amd64"
+rm "$second/target"
 rmdir "$second"
 
 version=$(go_run "$build" go version)
@@ -144,8 +147,8 @@ case "$version" in
     exit 1
     ;;
 esac
-go_run "$build" go tool objdump -gnu -s "$REGEX" /out/target-amd64 > "$build/target.objdump"
-go_run "$build" go tool nm -size -sort address /out/target-amd64 > "$build/target-amd64.nm"
+go_run "$build" go tool objdump -gnu -s "$REGEX" /out/target > "$build/target.objdump"
+go_run "$build" go tool nm -size -sort address /out/target > "$build/target.nm"
 
 # The disassembly must hold each function of the manifest one time, and no other function.
 python3 -I -B - "$build/target.objdump" "$SYMBOLS" <<'EOF'
@@ -165,12 +168,12 @@ EOF
   echo "tags: ${TAGS:-none}"
   echo "elf sha256: $elf_sha"
   echo "objdump sha256: $(sha "$build/target.objdump")"
-  echo "nm sha256: $(sha "$build/target-amd64.nm")"
+  echo "nm sha256: $(sha "$build/target.nm")"
   echo "main.go sha256: $(sha "$MAIN/main.go")"
   echo "manifest sha256: $(sha "$manifest")"
 } > "$build/build-ids.txt"
 cat "$build/build-ids.txt"
 
 rm -f "$build"/norm/*.S
-python3 -I -B "$tools/convert_objdump.py" "$build/target.objdump" "$build/target-amd64.nm" "$build/norm" --norm
+python3 -I -B "$tools/convert_objdump.py" "$build/target.objdump" "$build/target.nm" "$build/norm" --norm --arch="$ARCH"
 ls "$build/norm"

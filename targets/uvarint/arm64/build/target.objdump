@@ -1,0 +1,41 @@
+TEXT encoding/binary.Uvarint(SB) encoding/binary/varint.go
+  varint.go:68		0x8d090			f90007e0		MOVD R0, 8(RSP)                      // str x0, [sp,#8]			
+  varint.go:71		0x8d094			aa1f03e2		MOVD ZR, R2                          // mov x2, xzr			
+  varint.go:71		0x8d098			aa1f03e3		MOVD ZR, R3                          // mov x3, xzr			
+  varint.go:71		0x8d09c			aa1f03e4		MOVD ZR, R4                          // mov x4, xzr			
+  varint.go:71		0x8d0a0			14000009		JMP 9(PC)                            // b .+0x24			
+  varint.go:83		0x8d0a4			924018a5		AND $127, R5, R5                     // and x5, x5, #0x7f		
+  varint.go:83		0x8d0a8			9ac320a5		LSL R3, R5, R5                       // lsl x5, x5, x3			
+  varint.go:71		0x8d0ac			91000442		ADD $1, R2, R2                       // add x2, x2, #0x1		
+  varint.go:84		0x8d0b0			91001c66		ADD $7, R3, R6                       // add x6, x3, #0x7		
+  varint.go:83		0x8d0b4			f101007f		CMP $64, R3                          // cmp x3, #0x40			
+  varint.go:83		0x8d0b8			9a9f30a5		CSEL LO, R5, ZR, R5                  // csel x5, x5, xzr, cc		
+  varint.go:83		0x8d0bc			aa050084		ORR R5, R4, R4                       // orr x4, x4, x5			
+  varint.go:71		0x8d0c0			aa0603e3		MOVD R6, R3                          // mov x3, x6			
+  varint.go:71		0x8d0c4			eb02003f		CMP R2, R1                           // cmp x1, x2			
+  varint.go:71		0x8d0c8			540002ed		BLE 23(PC)                           // b.le .+0x5c			
+  varint.go:71		0x8d0cc			38626805		MOVBU (R0)(R2), R5                   // ldrb w5, [x0,x2]		
+  varint.go:72		0x8d0d0			f100285f		CMP $10, R2                          // cmp x2, #0xa			
+  varint.go:72		0x8d0d4			54000220		BEQ 17(PC)                           // b.eq .+0x44			
+  varint.go:77		0x8d0d8			aa0503e6		MOVD R5, R6                          // mov x6, x5			
+  varint.go:77		0x8d0dc			710200df		CMPW $128, R6                        // cmp w6, #0x80			
+  varint.go:77		0x8d0e0			54fffe22		BCS -15(PC)                          // b.cs .+0xffffffffffffffc4	
+  varint.go:78		0x8d0e4			f100245f		CMP $9, R2                           // cmp x2, #0x9			
+  varint.go:78		0x8d0e8			540000c1		BNE 6(PC)                            // b.ne .+0x18			
+  varint.go:78		0x8d0ec			710004df		CMPW $1, R6                          // cmp w6, #0x1			
+  varint.go:78		0x8d0f0			54000089		BLS 4(PC)                            // b.ls .+0x10			
+  varint.go:79		0x8d0f4			aa1f03e0		MOVD ZR, R0                          // mov x0, xzr			
+  varint.go:79		0x8d0f8			92800121		MOVD $-10, R1                        // mov x1, #0xfffffffffffffff6	
+  varint.go:79		0x8d0fc			d65f03c0		RET                                  // ret				
+  varint.go:81		0x8d100			9ac320a5		LSL R3, R5, R5                       // lsl x5, x5, x3			
+  varint.go:81		0x8d104			91000441		ADD $1, R2, R1                       // add x1, x2, #0x1		
+  varint.go:81		0x8d108			f101007f		CMP $64, R3                          // cmp x3, #0x40			
+  varint.go:81		0x8d10c			9a9f30a2		CSEL LO, R5, ZR, R2                  // csel x2, x5, xzr, cc		
+  varint.go:81		0x8d110			aa020080		ORR R2, R4, R0                       // orr x0, x4, x2			
+  varint.go:81		0x8d114			d65f03c0		RET                                  // ret				
+  varint.go:75		0x8d118			aa1f03e0		MOVD ZR, R0                          // mov x0, xzr			
+  varint.go:75		0x8d11c			92800141		MOVD $-11, R1                        // mov x1, #0xfffffffffffffff5	
+  varint.go:75		0x8d120			d65f03c0		RET                                  // ret				
+  varint.go:86		0x8d124			aa1f03e0		MOVD ZR, R0                          // mov x0, xzr			
+  varint.go:86		0x8d128			aa1f03e1		MOVD ZR, R1                          // mov x1, xzr			
+  varint.go:86		0x8d12c			d65f03c0		RET                                  // ret				

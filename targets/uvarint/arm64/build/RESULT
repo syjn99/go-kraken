@@ -1,0 +1,11 @@
+PASS pins: the ELF, the disassembly and the symbol listing have the sha256 values of build-ids.txt
+PASS code encoding_binary.Uvarint: 40 instructions, 160 bytes. The symbol table, objdump, LLVM, the ELF bytes and the labels agree
+PASS labels all.S: 6 labels, each with one definition. 0 external references, which all.S does not define. 0 calls to target functions at their entry: []
+PASS host program all.S: its 46 directives are the directives of the 1 function files in order
+PASS data: the data set is empty. The directory data/ has no data files
+PASS reassembly: clang aarch64-linux-gnu assembled 40 instructions again: 40 with the same bytes, 0 with another encoding, 0 padding
+elf sha256 ac68b01b768d9f954ccf65a3dae8f3a13f7cd77ac07b409ce0af98f182b7bbaa
+S sha256 773e3d3d05ef38b147f2b0b21e0382b89dad7b7260d61a78f9a78102db1576ee all.S
+S sha256 773e3d3d05ef38b147f2b0b21e0382b89dad7b7260d61a78f9a78102db1576ee encoding_binary.Uvarint.S
+PASS all
+BUNDLE sha256 6e2f5195bdb68fd7971711b08c9401fa68b43d925ac3460e4b3fd4eaafb4f3f5

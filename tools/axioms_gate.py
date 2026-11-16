@@ -18,7 +18,9 @@ The gate reads two inputs at run time. Its text names no library and no list.
 The command run has these steps:
 - Freshness check: `lake build --no-build <all modules>` must exit with 0.
   If it does not, the exit status is 2 and no other step runs. `lake env lean` does no freshness check.
-- Dump: `lake env lean --run tools/decl_dump.lean --root <library>... <modules>` runs for all libraries.
+- Dump: run decl_dump separately for each module, because Kraken architecture declarations share names.
+  Prefix each record name with its importing module and `::`. Check every scoped record.
+  Resolve hand-list names after removal of that prefix.
   It writes one row for each declaration to <dump.tsv>.
   A row has the name, the kind, the type hash, the value hash and the sorted set of `Lean.collectAxioms`.
   The --extra options add an .olean file from a scratch directory. Use them only to test the gate itself.
@@ -125,7 +127,8 @@ def check(rows, header, must):
     duplicate = sorted(n for n, c in collections.Counter(n for n, _, _ in rows).items() if c > 1)
     nonstd = {n: a for n, (k, a) in by.items() if not set(a) <= ALLOWED}
     sorry = sorted(n for n, (k, a) in by.items() if "sorryAx" in a)
-    missing = [n for n in must if n not in by]
+    names = {n.rsplit("::", 1)[-1] for n in by}
+    missing = [n for n in must if n not in names]
     kinds = {}
     for n, (k, a) in by.items():
         kinds[k] = kinds.get(k, 0) + 1
@@ -179,19 +182,27 @@ def cmd_run(out, dump, extra_paths, extra_mods):
     if p.returncode != 0:
         json.dump({**info, "verdict": "FAIL", "reason": "precheck"}, open(out, "w"), indent=1)
         return 2
-    roots = sum((["--root", r] for r in libs), [])
-    argv = ["lake", "env", "lean", "--run", str(DUMP)] + roots + ms
-    if extra_paths:  # a test of the gate only: an .olean file in a scratch directory
-        argv = ["lake", "env", "sh", "-c", 'LEAN_PATH="$0:$LEAN_PATH" exec "$@"', ":".join(extra_paths),
-                "lean", "--run", str(DUMP)] + roots + ms + extra_mods
-        info["extra_modules"] = extra_mods
-    d = subprocess.run(argv, cwd=LEAN, capture_output=True, text=True)
-    pathlib.Path(dump).write_text(d.stdout)
-    print("DUMP rc", d.returncode, "rows", d.stdout.count("\n") - 1, d.stderr[-500:], flush=True)
-    info["dump"] = {"rc": d.returncode, "stderr_tail": d.stderr[-500:]}
-    if d.returncode != 0:
-        json.dump({**info, "verdict": "FAIL", "reason": "dump"}, open(out, "w"), indent=1)
-        return 2
+    # Kraken defines architecture types at the root. Import each module in a separate process.
+    chunks = []
+    for mod in ms + extra_mods:
+        argv = ["lake", "env", "lean", "--run", str(DUMP), "--root", mod, mod]
+        if extra_paths:
+            argv = ["lake", "env", "sh", "-c", 'LEAN_PATH="$0:$LEAN_PATH" exec "$@"', ":".join(extra_paths),
+                    "lean", "--run", str(DUMP), "--root", mod, mod]
+        d = subprocess.run(argv, cwd=LEAN, capture_output=True, text=True)
+        if d.returncode != 0:
+            pathlib.Path(dump).write_text("\n".join(chunks) + d.stdout)
+            json.dump({**info, "verdict": "FAIL", "reason": "dump", "module": mod,
+                       "rc": d.returncode, "stderr_tail": d.stderr[-500:]}, open(out, "w"), indent=1)
+            return 2
+        h, rows = parse(d.stdout)
+        if not h or not rows:
+            raise SetupError(f"declaration dump for {mod} is empty or has no header")
+        chunks.extend(f"{mod}::{row}" for row in d.stdout.splitlines()[1:])
+        print("DUMP", mod, "rc 0 rows", len(rows), flush=True)
+    pathlib.Path(dump).write_text("# decl_dump v1 modules=" + str(len(ms + extra_mods)) + "\n" + "\n".join(chunks) + "\n")
+    print("DUMP rc 0 rows", len(chunks), flush=True)
+    info["dump"] = {"rc": 0, "modules": len(ms + extra_mods)}
     return cmd_check(dump, out, info)
 
 
@@ -216,6 +227,10 @@ def selftest():
         ("empty", H, [], "FAIL"),
         ("duplicate_hides_sorry", ok_rows + "\nLib.a\ttheorem\t0\t-\tsorryAx", ["Lib.a"], "FAIL"),
         ("no_header", ok_rows.split("\n", 1)[1], ["Lib.a"], "FAIL"),
+        ("scoped_names", H + "\nModuleA::Lib.a\ttheorem\t0\t-\t-\nModuleB::Lib.a\ttheorem\t0\t-\t-",
+         ["Lib.a"], "PASS"),
+        ("scoped_bad_axiom", H + "\nModuleA::Lib.a\ttheorem\t0\t-\t-\nModuleB::Lib.a\ttheorem\t0\t-\tsorryAx",
+         ["Lib.a"], "FAIL"),
     ]
     for name, tsv, must, want in cases:
         h, rows = parse(tsv)

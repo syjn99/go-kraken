@@ -1,5 +1,5 @@
-import Machine.Step
-import Uvarint.Statements
+import Machine.Amd64.Step
+import Uvarint.Amd64.Statements
 
 /-!
 # The three early returns of `encoding/binary.Uvarint`

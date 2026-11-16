@@ -9,7 +9,7 @@ Usage. A run is a Lean job. The working directory does not matter.
   negative.py --selftest-timeout                   checks the cleanup after a timeout, with a fake child process
 
 cases.json is a list of cases. Each case has these fields:
-- "id", "module" (a path under lean/, for example "Uvarint/DecodeLoop.lean"), "theorem".
+- "id", "module" (a path under lean/, for example "Uvarint/Amd64/DecodeLoop.lean"), "theorem".
 - "kind": "code", "statement" or "control".
 - For "code": "code_definition" (the Lean name of the included program, for example "uvarint"),
   "assembly" (the path of the .S file from the repository root), "old" and "new".
@@ -349,7 +349,7 @@ def run_capped(argv, cwd, timeout):
 
 
 def module_name(path):
-    """The module name of a path, for example `Uvarint.Statements` for `Uvarint/Statements.lean`."""
+    """The module name of a path, for example `Uvarint.Amd64.Statements` for `Uvarint/Amd64/Statements.lean`."""
     return path[:-len(".lean")].replace("/", ".")
 
 
@@ -449,7 +449,8 @@ def build_mutant(c, sdir):
         if not n:
             raise ValueError(f"{c['id']}: code_definition {name} is not used after the imports")
         ns = code_namespace_of(c)
-        decl = f'def {ns}.{name}Mut : Program := include_x64_code "{sdir / "mut.S"}"'
+        reader = "include_arm64_code" if "/Arm64/" in c["module"] else "include_x64_code"
+        decl = f'def {ns}.{name}Mut : Program := {reader} "{sdir / "mut.S"}"'
         text = "\n".join(tl[:k] + ["", decl] + [rest])
         lo += 2
         hi += 2

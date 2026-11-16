@@ -2,33 +2,33 @@
  {
   "id": "decode-result-control",
   "kind": "control",
-  "module": "Uvarint/DecodeResult.lean",
+  "module": "Uvarint/Amd64/DecodeResult.lean",
   "theorem": "Uvarint.Decode.result",
   "code_definition": "uvarint",
   "code_namespace": "Uvarint.Code",
   "assembly": "targets/uvarint/build/norm/encoding_binary.Uvarint.S",
   "inline": [
-   "Uvarint/Statements.lean",
-   "Uvarint/DecodeExits.lean",
-   "Uvarint/DecodeValue.lean",
-   "Uvarint/DecodeContinue.lean",
-   "Uvarint/DecodeLoop.lean"
+   "Uvarint/Amd64/Statements.lean",
+   "Uvarint/Amd64/DecodeExits.lean",
+   "Uvarint/Amd64/DecodeValue.lean",
+   "Uvarint/Amd64/DecodeContinue.lean",
+   "Uvarint/Amd64/DecodeLoop.lean"
   ]
  },
  {
   "id": "decode-result-code-spill-0x8-to-0x10",
   "kind": "code",
-  "module": "Uvarint/DecodeResult.lean",
+  "module": "Uvarint/Amd64/DecodeResult.lean",
   "theorem": "Uvarint.Decode.result",
   "code_definition": "uvarint",
   "code_namespace": "Uvarint.Code",
   "assembly": "targets/uvarint/build/norm/encoding_binary.Uvarint.S",
   "inline": [
-   "Uvarint/Statements.lean",
-   "Uvarint/DecodeExits.lean",
-   "Uvarint/DecodeValue.lean",
-   "Uvarint/DecodeContinue.lean",
-   "Uvarint/DecodeLoop.lean"
+   "Uvarint/Amd64/Statements.lean",
+   "Uvarint/Amd64/DecodeExits.lean",
+   "Uvarint/Amd64/DecodeValue.lean",
+   "Uvarint/Amd64/DecodeContinue.lean",
+   "Uvarint/Amd64/DecodeLoop.lean"
   ],
   "old": "  mov %rax,0x8(%rsp)",
   "new": "  mov %rax,0x10(%rsp)"
@@ -36,14 +36,14 @@
  {
   "id": "decode-result-statement-rsp-8-to-16",
   "kind": "statement",
-  "module": "Uvarint/DecodeResult.lean",
+  "module": "Uvarint/Amd64/DecodeResult.lean",
   "theorem": "Uvarint.Decode.result",
   "inline": [
-   "Uvarint/Statements.lean",
-   "Uvarint/DecodeExits.lean",
-   "Uvarint/DecodeValue.lean",
-   "Uvarint/DecodeContinue.lean",
-   "Uvarint/DecodeLoop.lean"
+   "Uvarint/Amd64/Statements.lean",
+   "Uvarint/Amd64/DecodeExits.lean",
+   "Uvarint/Amd64/DecodeValue.lean",
+   "Uvarint/Amd64/DecodeContinue.lean",
+   "Uvarint/Amd64/DecodeLoop.lean"
   ],
   "statement_def": "Uvarint.Decode.result_statement",
   "old": "st.data.regs.rsp = s.regs.rsp + 8",
@@ -52,22 +52,22 @@
  {
   "id": "decode-iteration-control",
   "kind": "control",
-  "module": "Uvarint/DecodeLoop.lean",
+  "module": "Uvarint/Amd64/DecodeLoop.lean",
   "theorem": "Uvarint.Decode.iteration",
   "code_definition": "uvarint",
   "code_namespace": "Uvarint.Code",
   "assembly": "targets/uvarint/build/norm/encoding_binary.Uvarint.S",
   "inline": [
-   "Uvarint/Statements.lean",
-   "Uvarint/DecodeExits.lean",
-   "Uvarint/DecodeValue.lean",
-   "Uvarint/DecodeContinue.lean"
+   "Uvarint/Amd64/Statements.lean",
+   "Uvarint/Amd64/DecodeExits.lean",
+   "Uvarint/Amd64/DecodeValue.lean",
+   "Uvarint/Amd64/DecodeContinue.lean"
   ]
  },
  {
   "id": "decode-iteration-code-cmp-0xa-to-0xb",
   "kind": "code",
-  "module": "Uvarint/DecodeLoop.lean",
+  "module": "Uvarint/Amd64/DecodeLoop.lean",
   "theorem": "Uvarint.Decode.iteration",
   "code_definition": "uvarint",
   "code_namespace": "Uvarint.Code",
@@ -75,16 +75,16 @@
   "old": "  cmp $0xa,%rcx",
   "new": "  cmp $0xb,%rcx",
   "inline": [
-   "Uvarint/Statements.lean",
-   "Uvarint/DecodeExits.lean",
-   "Uvarint/DecodeValue.lean",
-   "Uvarint/DecodeContinue.lean"
+   "Uvarint/Amd64/Statements.lean",
+   "Uvarint/Amd64/DecodeExits.lean",
+   "Uvarint/Amd64/DecodeValue.lean",
+   "Uvarint/Amd64/DecodeContinue.lean"
   ]
  },
  {
   "id": "decode-continue-path-control",
   "kind": "control",
-  "module": "Uvarint/DecodeContinue.lean",
+  "module": "Uvarint/Amd64/DecodeContinue.lean",
   "theorem": "Uvarint.Decode.continue_path",
   "code_definition": "uvarint",
   "code_namespace": "Uvarint.Code",
@@ -93,7 +93,7 @@
  {
   "id": "decode-continue-path-code-and-0x7f-to-0xff",
   "kind": "code",
-  "module": "Uvarint/DecodeContinue.lean",
+  "module": "Uvarint/Amd64/DecodeContinue.lean",
   "theorem": "Uvarint.Decode.continue_path",
   "code_definition": "uvarint",
   "code_namespace": "Uvarint.Code",
@@ -104,7 +104,7 @@
  {
   "id": "decode-exit-overflow-eleven-control",
   "kind": "control",
-  "module": "Uvarint/DecodeExits.lean",
+  "module": "Uvarint/Amd64/DecodeExits.lean",
   "theorem": "Uvarint.Decode.exit_overflow_eleven",
   "code_definition": "uvarint",
   "code_namespace": "Uvarint.Code",
@@ -113,7 +113,7 @@
  {
   "id": "decode-exit-overflow-eleven-code-mov-minus-0xb-to-minus-0xa",
   "kind": "code",
-  "module": "Uvarint/DecodeExits.lean",
+  "module": "Uvarint/Amd64/DecodeExits.lean",
   "theorem": "Uvarint.Decode.exit_overflow_eleven",
   "code_definition": "uvarint",
   "code_namespace": "Uvarint.Code",
@@ -124,7 +124,7 @@
  {
   "id": "decode-exit-overflow-eleven-statement-overflow-11-to-overflow-10",
   "kind": "statement",
-  "module": "Uvarint/DecodeExits.lean",
+  "module": "Uvarint/Amd64/DecodeExits.lean",
   "theorem": "Uvarint.Decode.exit_overflow_eleven",
   "old": "(hdec : decode buf = .overflow 11)",
   "new": "(hdec : decode buf = .overflow 10)"
@@ -132,13 +132,13 @@
  {
   "id": "witness-runs-maximum-control",
   "kind": "control",
-  "module": "Uvarint/WitnessDecodeResult.lean",
+  "module": "Uvarint/Amd64/WitnessDecodeResult.lean",
   "theorem": "Uvarint.Witness.DecodeResult.runs_maximum"
  },
  {
   "id": "witness-runs-maximum-statement-rbx-10-to-rbx-9",
   "kind": "statement",
-  "module": "Uvarint/WitnessDecodeResult.lean",
+  "module": "Uvarint/Amd64/WitnessDecodeResult.lean",
   "theorem": "Uvarint.Witness.DecodeResult.runs_maximum",
   "old": "st.data.regs.rbx = 10)",
   "new": "st.data.regs.rbx = 9)"

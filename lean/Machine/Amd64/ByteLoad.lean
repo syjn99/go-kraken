@@ -1,4 +1,4 @@
-import Machine.Step
+import Machine.Amd64.Step
 
 /-!
 # A load of one byte from inside a separate block

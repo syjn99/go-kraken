@@ -44,4 +44,13 @@ def decodeFrom (index : Nat) (sum : Nat) : List UInt8 → Result
 /-- Decode an unsigned variable-length integer from the start of `buf`. -/
 def decode (buf : List UInt8) : Result := decodeFrom 0 0 buf
 
+/-- The machine form of a result: the pair of result registers at return.
+A value `x` of `n` bytes gives (`x`, `n`).
+An incomplete buffer gives (0, 0).
+An overflow after `n` bytes gives (0, the 64-bit two's complement of `-n`). -/
+def Result.machineForm : Result → UInt64 × UInt64
+  | .value x n => (x, UInt64.ofNat n)
+  | .incomplete => (0, 0)
+  | .overflow n => (0, UInt64.ofInt (-(n : Int)))
+
 end Uvarint

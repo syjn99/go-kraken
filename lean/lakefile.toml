@@ -27,4 +27,10 @@ filter = {extension = ["S"]}
 [[lean_lib]]
 name = "Uvarint"
 globs = ["Uvarint.+"]
-needs = ["uvarint_norm_S"]
+needs = ["uvarint_norm_S", "uvarint_arm64_norm_S"]
+
+[[input_dir]]
+name = "uvarint_arm64_norm_S"
+path = "../targets/uvarint/build-arm64/norm"
+text = true
+filter = {extension = ["S"]}

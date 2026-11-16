@@ -60,7 +60,7 @@ def dumpRows (env : Environment) (roots : List Name) : CoreM (Array String) := d
   for (n, ci) in env.constants.toList do
     let some idx := env.getModuleIdxFor? n | continue
     let mod := env.header.moduleNames[idx.toNat]!
-    unless roots.contains mod.getRoot do continue
+    unless roots.any (fun root => root.isPrefixOf mod) do continue
     let (kind, val) := kindOf ci
     let vh := match val with
       | some v => hex16 v.hash

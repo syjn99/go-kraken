@@ -81,7 +81,9 @@ for d in items:
          "a data item needs an id, a symbol and a kind")
 if items:
     fail("data_items: this script has no data extractor", 2)
+need(env.get("GOOS") == "linux" and env.get("GOARCH") in ("amd64", "arm64"), "only linux/amd64 and linux/arm64 are supported")
 out = {
+    "ARCH": env["GOARCH"],
     "NAME": name,
     "IMAGE": go["docker_image"],
     "GO_VERSION": go["version"],
@@ -100,6 +102,9 @@ EOF
 eval "$settings"
 
 build="$mdir/build"
+if [ "$ARCH" = arm64 ]; then
+  build="$mdir/build-arm64"
+fi
 second="$build/second-build"
 mkdir -p "$build/norm" "$second"
 tagarg=""
@@ -123,17 +128,17 @@ sha() {
 }
 
 # shellcheck disable=SC2086
-go_run "$build" go build $FLAGS $tagarg -o /out/target-amd64 .
+go_run "$build" go build $FLAGS $tagarg -o /out/target-$ARCH .
 # shellcheck disable=SC2086
-go_run "$second" go build $FLAGS $tagarg -o /out/target-amd64 .
-elf_sha=$(sha "$build/target-amd64")
-second_sha=$(sha "$second/target-amd64")
+go_run "$second" go build $FLAGS $tagarg -o /out/target-$ARCH .
+elf_sha=$(sha "$build/target-$ARCH")
+second_sha=$(sha "$second/target-$ARCH")
 if [ "$elf_sha" != "$second_sha" ]; then
   echo "the two builds are different: $elf_sha and $second_sha" >&2
   echo "the second ELF stays in $second" >&2
   exit 1
 fi
-rm "$second/target-amd64"
+rm "$second/target-$ARCH"
 rmdir "$second"
 
 version=$(go_run "$build" go version)
@@ -144,8 +149,8 @@ case "$version" in
     exit 1
     ;;
 esac
-go_run "$build" go tool objdump -gnu -s "$REGEX" /out/target-amd64 > "$build/target.objdump"
-go_run "$build" go tool nm -size -sort address /out/target-amd64 > "$build/target-amd64.nm"
+go_run "$build" go tool objdump -gnu -s "$REGEX" /out/target-$ARCH > "$build/target.objdump"
+go_run "$build" go tool nm -size -sort address /out/target-$ARCH > "$build/target-$ARCH.nm"
 
 # The disassembly must hold each function of the manifest one time, and no other function.
 python3 -I -B - "$build/target.objdump" "$SYMBOLS" <<'EOF'
@@ -165,12 +170,12 @@ EOF
   echo "tags: ${TAGS:-none}"
   echo "elf sha256: $elf_sha"
   echo "objdump sha256: $(sha "$build/target.objdump")"
-  echo "nm sha256: $(sha "$build/target-amd64.nm")"
+  echo "nm sha256: $(sha "$build/target-$ARCH.nm")"
   echo "main.go sha256: $(sha "$MAIN/main.go")"
   echo "manifest sha256: $(sha "$manifest")"
 } > "$build/build-ids.txt"
 cat "$build/build-ids.txt"
 
 rm -f "$build"/norm/*.S
-python3 -I -B "$tools/convert_objdump.py" "$build/target.objdump" "$build/target-amd64.nm" "$build/norm" --norm
+python3 -I -B "$tools/convert_objdump.py" "$build/target.objdump" "$build/target-$ARCH.nm" "$build/norm" --norm --arch="$ARCH"
 ls "$build/norm"

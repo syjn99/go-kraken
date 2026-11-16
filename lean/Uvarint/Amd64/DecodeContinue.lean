@@ -1,6 +1,6 @@
-import Machine.CompareFlags
-import Uvarint.ShiftAndMask
-import Uvarint.Code
+import Machine.Amd64.CompareFlags
+import Uvarint.Amd64.ShiftAndMask
+import Uvarint.Amd64.Code
 
 /-!
 # One more byte: the loop body of `encoding/binary.Uvarint`

@@ -1,5 +1,5 @@
-import Machine.Labels
-import Machine.Bytes
+import Machine.Amd64.Labels
+import Machine.Amd64.Bytes
 
 /-!
 # Witness hosts

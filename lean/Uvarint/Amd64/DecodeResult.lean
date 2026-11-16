@@ -1,4 +1,4 @@
-import Uvarint.DecodeLoop
+import Uvarint.Amd64.DecodeLoop
 
 /-!
 # Main theorem of `encoding/binary.Uvarint`

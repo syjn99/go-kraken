@@ -1,6 +1,6 @@
-import Uvarint.DecodeResult
+import Uvarint.Amd64.DecodeResult
 import Uvarint.SpecKnownAnswers
-import Machine.WitnessHost
+import Machine.Amd64.WitnessHost
 
 /-!
 # Witnesses of `Uvarint.Decode.result`

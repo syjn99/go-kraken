@@ -3,7 +3,7 @@ import Kraken.X64.Sep
 import Kraken.Tactics
 import Kraken.SeparationTactics
 import Kraken.X64.Parser
-import Machine.Include
+import Machine.Amd64.Include
 import Std.Tactic.BVDecide
 
 /-! Step lemmas for one directive inside a `Host`, on top of Kraken commit 6064eec. -/

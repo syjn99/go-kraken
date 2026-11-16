@@ -1,4 +1,4 @@
-import Machine.Step
+import Machine.Amd64.Step
 
 /-!
 # Shift and byte facts of the `Uvarint` code

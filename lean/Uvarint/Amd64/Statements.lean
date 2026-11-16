@@ -1,5 +1,5 @@
-import Machine.Labels
-import Uvarint.Code
+import Machine.Amd64.Labels
+import Uvarint.Amd64.Code
 import Uvarint.Spec
 
 /-!
@@ -35,15 +35,6 @@ open Machine Uvarint.Code
 variable [Host]
 
 namespace Uvarint
-
-/-- The machine form of a result: the pair (rax, rbx) at return.
-A value `x` of `n` bytes gives (`x`, `n`).
-An incomplete buffer gives (0, 0).
-An overflow after `n` bytes gives (0, the 64-bit two's complement of `-n`). -/
-def Result.machineForm : Result → UInt64 × UInt64
-  | .value x n => (x, UInt64.ofNat n)
-  | .incomplete => (0, 0)
-  | .overflow n => (0, UInt64.ofInt (-(n : Int)))
 
 /-- **Main theorem of `encoding/binary.Uvarint`. One statement covers all three results.**
 

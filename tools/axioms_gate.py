@@ -179,19 +179,26 @@ def cmd_run(out, dump, extra_paths, extra_mods):
     if p.returncode != 0:
         json.dump({**info, "verdict": "FAIL", "reason": "precheck"}, open(out, "w"), indent=1)
         return 2
-    roots = sum((["--root", r] for r in libs), [])
-    argv = ["lake", "env", "lean", "--run", str(DUMP)] + roots + ms
-    if extra_paths:  # a test of the gate only: an .olean file in a scratch directory
-        argv = ["lake", "env", "sh", "-c", 'LEAN_PATH="$0:$LEAN_PATH" exec "$@"', ":".join(extra_paths),
-                "lean", "--run", str(DUMP)] + roots + ms + extra_mods
-        info["extra_modules"] = extra_mods
-    d = subprocess.run(argv, cwd=LEAN, capture_output=True, text=True)
-    pathlib.Path(dump).write_text(d.stdout)
-    print("DUMP rc", d.returncode, "rows", d.stdout.count("\n") - 1, d.stderr[-500:], flush=True)
-    info["dump"] = {"rc": d.returncode, "stderr_tail": d.stderr[-500:]}
-    if d.returncode != 0:
-        json.dump({**info, "verdict": "FAIL", "reason": "dump"}, open(out, "w"), indent=1)
-        return 2
+    # Kraken defines architecture types at the root. Import each module in a separate process.
+    chunks = []
+    for mod in ms + extra_mods:
+        argv = ["lake", "env", "lean", "--run", str(DUMP), "--root", mod, mod]
+        if extra_paths:
+            argv = ["lake", "env", "sh", "-c", 'LEAN_PATH="$0:$LEAN_PATH" exec "$@"', ":".join(extra_paths),
+                    "lean", "--run", str(DUMP), "--root", mod, mod]
+        d = subprocess.run(argv, cwd=LEAN, capture_output=True, text=True)
+        if d.returncode != 0:
+            pathlib.Path(dump).write_text("\n".join(chunks) + d.stdout)
+            json.dump({**info, "verdict": "FAIL", "reason": "dump", "module": mod,
+                       "rc": d.returncode, "stderr_tail": d.stderr[-500:]}, open(out, "w"), indent=1)
+            return 2
+        h, rows = parse(d.stdout)
+        if not h or not rows:
+            raise SetupError(f"declaration dump for {mod} is empty or has no header")
+        chunks.extend(d.stdout.splitlines()[1:])
+    pathlib.Path(dump).write_text("# decl_dump v1 modules=" + str(len(ms + extra_mods)) + "\n" + "\n".join(chunks) + "\n")
+    print("DUMP rc 0 rows", len(chunks), flush=True)
+    info["dump"] = {"rc": 0, "modules": len(ms + extra_mods)}
     return cmd_check(dump, out, info)
 
 

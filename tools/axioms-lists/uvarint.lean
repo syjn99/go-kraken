@@ -1,4 +1,4 @@
-import Uvarint.WitnessDecodeResult
+import Uvarint.Amd64.WitnessDecodeResult
 
 /-! The main theorem and the witnesses of the uvarint target. The axioms gate checks that each name is in its dump. -/
 

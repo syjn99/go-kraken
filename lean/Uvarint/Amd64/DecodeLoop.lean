@@ -1,10 +1,10 @@
-import Machine.ByteLoad
-import Machine.Bytes
-import Machine.CompareFlags
-import Machine.Labels
-import Uvarint.DecodeExits
-import Uvarint.DecodeValue
-import Uvarint.DecodeContinue
+import Machine.Amd64.ByteLoad
+import Machine.Amd64.Bytes
+import Machine.Amd64.CompareFlags
+import Machine.Amd64.Labels
+import Uvarint.Amd64.DecodeExits
+import Uvarint.Amd64.DecodeValue
+import Uvarint.Amd64.DecodeContinue
 
 /-!
 # The loop of `encoding/binary.Uvarint`

@@ -1,6 +1,6 @@
-import Machine.CompareFlags
-import Uvarint.DecodeExits
-import Uvarint.ShiftAndMask
+import Machine.Amd64.CompareFlags
+import Uvarint.Amd64.DecodeExits
+import Uvarint.Amd64.ShiftAndMask
 
 /-!
 # The value return of `encoding/binary.Uvarint`

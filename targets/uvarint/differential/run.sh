@@ -1,6 +1,6 @@
 #!/bin/sh
 # Differential run of the uvarint target: Go binary.Uvarint against the Lean Uvarint.decode.
-# Usage: sh go-kraken/targets/uvarint/differential/run.sh <work-dir>
+# Usage: sh targets/uvarint/differential/run.sh <work-dir>
 # All generated files go into <work-dir>. Nothing is written into the tree.
 # The Go program runs natively in the container. It checks Go semantics, not the amd64 code.
 # Exit 0 only when the two outputs are equal.

@@ -2,7 +2,7 @@
 
 This framework proves that the x86-64 machine code of a Go function agrees with a Lean specification.
 Kraken is a Lean 4 model of x86-64 instructions.
-The method comes from the project `fv/kraken` of this repository, which applies it to generated SSZ code.
+The method comes from the directory `fv/kraken` of the repository `syjn99/methodical-ssz`, which applies it to generated SSZ code.
 SSZ (Simple Serialize) is the serialization format of the Ethereum consensus layer.
 This document gives the stages of the method, and what a new target must supply.
 A target is one set of Go functions in one compiled binary.
@@ -272,7 +272,7 @@ Never write "complete" for a function that has a path in its list of paths not p
 ## 5. Directory layout
 
 ```text
-go-kraken/
+./                       the repository root
   DESIGN.md              this document
   README.md              the commands that work
   FINDINGS.md            findings, stops and paths not proved

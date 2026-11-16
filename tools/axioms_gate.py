@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# Source: methodical-ssz commit 320929dd, fv/kraken/gen/checks/axioms_gate.py (paths changed to go-kraken).
-"""Axioms gate over EVERY declaration of EVERY Lean library of go-kraken/lean.
+# Source: methodical-ssz commit 320929dd, fv/kraken/gen/checks/axioms_gate.py (paths changed for this repository).
+"""Axioms gate over EVERY declaration of EVERY Lean library of lean/.
 
 Usage (one gated job, Lean env; the cwd does not matter):
   axioms_gate.py run <out.json> <dump.tsv> [--extra-lean-path DIR --extra-module M]...
@@ -8,10 +8,10 @@ Usage (one gated job, Lean env; the cwd does not matter):
   axioms_gate.py --selftest                       (crafted inputs, no Lean)
 
 The gate reads two things at run time. It has no library name and no list name in its text.
- * Libraries: the `name = "..."` line of each `[[lean_lib]]` block of go-kraken/lean/lakefile.toml.
-   Each library must have the glob `<name>.+`. Its modules are the *.lean files under go-kraken/lean/<name>/.
+ * Libraries: the `name = "..."` line of each `[[lean_lib]]` block of lean/lakefile.toml.
+   Each library must have the glob `<name>.+`. Its modules are the *.lean files under lean/<name>/.
    A library with another glob form, or with no module, stops the gate (exit 2).
- * Hand lists: every *.lean file directly in go-kraken/tools/axioms-lists/. Each one is a list of
+ * Hand lists: every *.lean file directly in tools/axioms-lists/. Each one is a list of
    `#print axioms <name>` lines with the imports that the names need. No list file stops the gate (exit 2).
    The selftest only reports the number of hand lists of the tree. It also runs when there is none.
 
@@ -20,7 +20,7 @@ run:
     `lake env lean` itself does no trace check.
  2. `lake env lean --run <decl_dump.lean> --root <library>... <modules>` (every library) writes one row per
     declaration (name, kind, type hash, value hash, sorted Lean.collectAxioms set) to <dump.tsv>. decl_dump.lean is
-    go-kraken/tools/decl_dump.lean (read only). --extra-* adds a scratch .olean (negative control only).
+    tools/decl_dump.lean (read only). --extra-* adds a scratch .olean (negative control only).
  3. check: every row's axiom set is a subset of {propext, Classical.choice, Quot.sound}; no sorryAx; every name of
     the hand lists exists in the dump ("must exist"). Names are read from tab-separated columns, so names with `'`
     work.

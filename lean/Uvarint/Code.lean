@@ -4,7 +4,7 @@ import Machine.Include
 /-!
 # Code of `encoding/binary.Uvarint` (Go 1.26.10, linux/amd64, GOAMD64=v1)
 
-The converted assembly of the pilot target. `go-kraken/tools/convert_objdump.py` writes the file.
+The converted assembly of the pilot target. `tools/convert_objdump.py` writes the file.
 -/
 
 namespace Uvarint

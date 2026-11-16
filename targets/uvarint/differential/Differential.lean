@@ -1,6 +1,6 @@
 /-
 Differential run of the uvarint specification.
-Run from go-kraken/lean: `lake env lean --run <this file> <case list>`.
+Run from lean/: `lake env lean --run <this file> <case list>`.
 For each case line it prints the case as written, then x and n.
 The line `-` is the empty buffer.
 The mapping from a result to x and n is written here again on purpose.

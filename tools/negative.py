@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-# Source: methodical-ssz commit 320929dd, fv/kraken/gen/checks/negative.py (paths changed to go-kraken).
+# Source: methodical-ssz commit 320929dd, fv/kraken/gen/checks/negative.py (paths changed for this repository).
 """Negative suite: every mutant must fail inside its designated theorem; every control passes.
 
 Usage (run inside one gated job, Lean env, cwd anywhere):
   negative.py <cases.json> <work-dir> <result.json> [<case-id>...]
-cases.json: list of {"id", "module" (path under go-kraken/lean, e.g. "Uvarint/DecodeAccept.lean"), "theorem",
+cases.json: list of {"id", "module" (path under lean/, e.g. "Uvarint/DecodeAccept.lean"), "theorem",
   "kind": "code" | "statement" | "control",
   code:  "code_definition" (Lean name of the included program, e.g. "Uvarint.Code.uvarint"), "assembly" (path of
-         the .S under go-kraken, e.g. "targets/uvarint/build/norm/encoding_binary.Uvarint.S"), "old", "new" (one exact
+         the .S relative to the repository root, e.g. "targets/uvarint/build/norm/encoding_binary.Uvarint.S"), "old", "new" (one exact
          instruction line, unique in the file, or at the 1-based "line" of the file)
   statement:  "old", "new" (exact text, unique inside the theorem statement)
   control: optional "code_definition"/"assembly" (then an unmutated copy of the .S is included the same way)
@@ -23,7 +23,7 @@ theorem's command: the `set_option … in` lines and the doc comment directly ab
 (Lean reports an error of the whole declaration, for example its heartbeat timeout, at that line). For code cases, a
 new constant `<code namespace>.<code_definition>Mut` that includes the mutated .S copy (absolute path in <work-dir>)
 and every whole-word use of <code_definition> after the imports renamed to it. `lake env lean <file>` runs
-under the memory cap (go-kraken/tools/memory_limit.py) from go-kraken/lean. A mutant passes the suite when Lean reports an error,
+under the memory cap (tools/memory_limit.py) from lean/. A mutant passes the suite when Lean reports an error,
 every error line lies inside the case range, and the FIRST error is neither a resource error nor a wrong_target
 form (a later heartbeat or recursion error after a real first error is kept in "later_resource_error" and does
 not change the class); a control passes when Lean reports no error. Each result has a "class": control_pass, inside, outside,
@@ -438,7 +438,7 @@ def reclassify(out, work=None):
 
 
 def imports_of(modules):
-    """Module names imported by the given files (paths under go-kraken/lean)."""
+    """Module names imported by the given files (paths under lean/)."""
     mods = set()
     for m in modules:
         for l in (LEAN / m).read_text().split("\n"):

@@ -1,6 +1,6 @@
 #!/bin/sh
 # Build the ELF of one target in Docker and write its link inputs.
-# Usage: sh go-kraken/tools/build_target.sh <manifest>
+# Usage: sh tools/build_target.sh <manifest>
 # The output directory is <directory of the manifest>/build.
 # The script builds the ELF two times in two containers. The two ELF files must be equal.
 # It stops with a non-zero exit status on any error or difference.

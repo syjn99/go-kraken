@@ -3,7 +3,51 @@
   "id": "decode-result-control",
   "kind": "control",
   "module": "Uvarint/DecodeResult.lean",
-  "theorem": "Uvarint.Decode.result"
+  "theorem": "Uvarint.Decode.result",
+  "code_definition": "uvarint",
+  "code_namespace": "Uvarint.Code",
+  "assembly": "targets/uvarint/build/norm/encoding_binary.Uvarint.S",
+  "inline": [
+   "Uvarint/Statements.lean",
+   "Uvarint/DecodeExits.lean",
+   "Uvarint/DecodeValue.lean",
+   "Uvarint/DecodeContinue.lean",
+   "Uvarint/DecodeLoop.lean"
+  ]
+ },
+ {
+  "id": "decode-result-code-spill-0x8-to-0x10",
+  "kind": "code",
+  "module": "Uvarint/DecodeResult.lean",
+  "theorem": "Uvarint.Decode.result",
+  "code_definition": "uvarint",
+  "code_namespace": "Uvarint.Code",
+  "assembly": "targets/uvarint/build/norm/encoding_binary.Uvarint.S",
+  "inline": [
+   "Uvarint/Statements.lean",
+   "Uvarint/DecodeExits.lean",
+   "Uvarint/DecodeValue.lean",
+   "Uvarint/DecodeContinue.lean",
+   "Uvarint/DecodeLoop.lean"
+  ],
+  "old": "  mov %rax,0x8(%rsp)",
+  "new": "  mov %rax,0x10(%rsp)"
+ },
+ {
+  "id": "decode-result-statement-rsp-8-to-16",
+  "kind": "statement",
+  "module": "Uvarint/DecodeResult.lean",
+  "theorem": "Uvarint.Decode.result",
+  "inline": [
+   "Uvarint/Statements.lean",
+   "Uvarint/DecodeExits.lean",
+   "Uvarint/DecodeValue.lean",
+   "Uvarint/DecodeContinue.lean",
+   "Uvarint/DecodeLoop.lean"
+  ],
+  "statement_def": "Uvarint.Decode.result_statement",
+  "old": "st.data.regs.rsp = s.regs.rsp + 8",
+  "new": "st.data.regs.rsp = s.regs.rsp + 16"
  },
  {
   "id": "decode-iteration-control",
@@ -12,7 +56,13 @@
   "theorem": "Uvarint.Decode.iteration",
   "code_definition": "uvarint",
   "code_namespace": "Uvarint.Code",
-  "assembly": "targets/uvarint/build/norm/encoding_binary.Uvarint.S"
+  "assembly": "targets/uvarint/build/norm/encoding_binary.Uvarint.S",
+  "inline": [
+   "Uvarint/Statements.lean",
+   "Uvarint/DecodeExits.lean",
+   "Uvarint/DecodeValue.lean",
+   "Uvarint/DecodeContinue.lean"
+  ]
  },
  {
   "id": "decode-iteration-code-cmp-0xa-to-0xb",
@@ -23,7 +73,13 @@
   "code_namespace": "Uvarint.Code",
   "assembly": "targets/uvarint/build/norm/encoding_binary.Uvarint.S",
   "old": "  cmp $0xa,%rcx",
-  "new": "  cmp $0xb,%rcx"
+  "new": "  cmp $0xb,%rcx",
+  "inline": [
+   "Uvarint/Statements.lean",
+   "Uvarint/DecodeExits.lean",
+   "Uvarint/DecodeValue.lean",
+   "Uvarint/DecodeContinue.lean"
+  ]
  },
  {
   "id": "decode-continue-path-control",

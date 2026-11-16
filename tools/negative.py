@@ -15,7 +15,12 @@ cases.json: list of {"id", "module" (path under lean/, e.g. "Uvarint/DecodeAccep
   is not a full name);
   optional for every kind: "mutant_imports" (list of module names, e.g. "Uvarint.Spec"):
   the mutated copy imports them in addition (the case module is unchanged), so that a mutant can name a declaration
-  of another module}
+  of another module;
+  optional for every kind: "inline" (list of module paths under lean/, in import order): the mutant file holds a copy
+  of each module, each in its own `section`, before the case module. The code rename then reaches these copies.
+  Use it for each module between the code module and the case module, so that no helper names the original program;
+  optional for statement: "statement_def" (full name of a `def` in an inlined module): "old" and "new" apply inside
+  that definition, and the case range stays the theorem}
 For each case the mutant Lean file is the module's text up to the end of the designated theorem
 (the next top-level `theorem`/`def`/`end`/`example`/`/--` after it is cut; a `theorem <thm>_kind` that
 directly follows it is kept and belongs to the case range). The case range starts at the first line of the
@@ -26,15 +31,16 @@ and every whole-word use of <code_definition> after the imports renamed to it. `
 under the memory cap (tools/memory_limit.py) from lean/. A mutant passes the suite when Lean reports an error,
 every error line lies inside the case range, and the FIRST error is neither a resource error nor a wrong_target
 form (a later heartbeat or recursion error after a real first error is kept in "later_resource_error" and does
-not change the class); a control passes when Lean reports no error. Each result has a "class": control_pass, inside, outside,
-no_error, killed, timeout_wall (CASE_TIMEOUT expired) or timeout_heartbeat (an error line is Lean's
+not change the class); a control passes when Lean reports no error. Each result has a "class": control_pass, control_fail,
+inside, outside, no_error, killed, abnormal_exit (an exit status other than 0 and 1), mixed_programs (the first error
+names the original program and the mutant program), timeout_wall (CASE_TIMEOUT expired) or timeout_heartbeat (an error line is Lean's
 "(deterministic) timeout") or recursion_limit (an error line is "maximum recursion
 depth has been reached") or wrong_target (the FIRST error is a parse error or an unknown identifier /
 constant, or another parse / name-resolution form listed at WRONG_TARGET: the mutant does not reach its
 target); the resource classes are decided by the FIRST error line (a later resource
-error is kept in "later_resource_error"). These three resource classes and wrong_target are never a pass.
+error is kept in "later_resource_error"). Only control_pass and inside are a pass.
 negative.py --reclassify <result.json> [<work-dir>] recomputes the classes of a result file; --selftest checks them.
-negative.py --check-cases <cases.json>... resolves every case to one theorem line and checks the code_definition use (no Lean).
+negative.py --check-cases <cases.json>... builds the mutant text of each case without Lean.
 "theorem" is the full Lean name or the name as written on the declaration line; the full name selects the namespace
 block when one module holds the same written name twice. Without "code_namespace", a full name in "code_definition" is declared
 with `_root_`.
@@ -42,9 +48,8 @@ On a per-case timeout the whole process tree (memory_limit.py, and lake/lean in 
 and the driver asserts that none survives before the next case; --selftest-timeout checks
 this with a fake child (no Lean). Before the first case, `lake build --no-build <imports of the case modules>`
 must exit 0 (`lake env lean` does not check traces); otherwise no case runs and the exit code is 2.
-The precheck argv and exit code are appended to "prechecks" of <result.json>.
-Old results whose id is not in <cases.json> are dropped from <result.json>. A <case-id> that matches no
-case is a usage error: nothing runs and the exit code is 2.
+The precheck argv and exit code are in "precheck" of <result.json>. <result.json> holds only the cases of this run.
+A <case-id> that matches no case is a usage error: nothing runs and the exit code is 2.
 Writes <result.json> and, per case, <work-dir>/<id>/{mut.lean, mut.S?, diff, log}. Python 3 stdlib only.
 """
 import difflib
@@ -319,9 +324,66 @@ def run_capped(argv, cwd, timeout):
         return (out or "") + (err or ""), None, True, reaped
 
 
-def run_case(c, work):
-    d = work / c["id"]
-    d.mkdir(parents=True, exist_ok=True)
+def module_name(path):
+    """`Uvarint/Statements.lean` -> `Uvarint.Statements`."""
+    return path[:-len(".lean")].replace("/", ".")
+
+
+def import_closure(mods):
+    """The modules of the tree that the given modules import, directly or through other modules of the tree."""
+    seen, todo = set(), list(mods)
+    while todo:
+        m = todo.pop()
+        f = LEAN / (m.replace(".", "/") + ".lean")
+        if m in seen or not f.exists():
+            continue
+        seen.add(m)
+        todo += [x for l in f.read_text().split("\n") if l.startswith("import ") for x in l.split()[1:]]
+    return seen
+
+
+def inline_modules(c, lines):
+    """Copy the modules of `inline` into the mutant text, before the case module.
+    Each copy goes into its own `section`, so its `open` and `variable` commands stay local.
+    Their imports go to the top, without the imports of copied modules. The case module loses those imports too.
+    Returns the new lines and the shift of the line numbers of the case module."""
+    paths = c.get("inline", [])
+    if not paths:
+        return lines, 0
+    names = [module_name(m) for m in paths]
+    if module_name(c["module"]) in names or len(set(names)) != len(names):
+        raise ValueError(f"{c['id']}: inline holds the case module or a module two times")
+    k = max((i + 1 for i, l in enumerate(lines) if l.startswith("import ")), default=0)
+    head = []
+    for l in lines[:k]:
+        if l.startswith("import "):
+            keep = [x for x in l.split()[1:] if x not in names]
+            if keep:
+                head.append("import " + " ".join(keep))
+        else:
+            head.append(l)
+    body = []
+    for m in paths:
+        ml = (LEAN / m).read_text().split("\n")
+        if any(l.startswith(("module", "public import", "meta import")) for l in ml):
+            raise ValueError(f"{c['id']}: inline module {m} uses the module system")
+        for l in ml:
+            if l.startswith("import "):
+                for x in l.split()[1:]:
+                    if x not in names and f"import {x}" not in head:
+                        head.append(f"import {x}")
+        body += ["", f"section -- inlined {m}"] + [l for l in ml if not l.startswith("import ")] + ["end", ""]
+    kept = [x for l in head if l.startswith("import ") for x in l.split()[1:]]
+    clash = import_closure(kept) & set(names)
+    if clash:
+        raise ValueError(f"{c['id']}: an import that stays also imports the inlined modules {sorted(clash)}")
+    out = head + body + lines[k:]
+    return out, len(out) - len(lines)
+
+
+def build_mutant(c, sdir):
+    """The mutant Lean text of a case, its range and its diff. A code case includes the .S file `sdir/mut.S`.
+    Returns (text, lo, hi, mutated .S text or None, diff). Raises ValueError for a case that cannot be built."""
     src = (LEAN / c["module"]).read_text()
     lines, lo, hi = cut(src, c["theorem"])
     # lines of the theorem's command above its `theorem` line (set_option … in, doc comment); the inserted import
@@ -333,39 +395,75 @@ def run_case(c, work):
         lines = lines[:k] + extra + lines[k:]
         lo += len(extra)
         hi += len(extra)
+    lines, shift = inline_modules(c, lines)
+    lo += shift
+    hi += shift
     text = "\n".join(lines)
-    diff = ""
+    diff, S2 = "", None
     if c.get("code_definition"):
         S = (KR / c["assembly"]).read_text()
         if c["kind"] == "code":
             if "line" in c:  # 1-based line of the .S file (for an instruction that occurs twice)
                 sl = S.split("\n")
-                assert sl[c["line"] - 1] == c["old"], (c["id"], "line does not hold the old instruction")
+                if sl[c["line"] - 1] != c["old"]:
+                    raise ValueError(f"{c['id']}: line {c['line']} does not hold the old instruction")
                 sl[c["line"] - 1] = c["new"]
                 S2 = "\n".join(sl)
             else:
-                assert S.count(c["old"] + "\n") == 1, (c["id"], "old instruction not unique")
+                if S.count(c["old"] + "\n") != 1:
+                    raise ValueError(f"{c['id']}: the old instruction is not unique")
                 S2 = S.replace(c["old"] + "\n", c["new"] + "\n")
             diff = "".join(difflib.unified_diff(S.splitlines(True), S2.splitlines(True), "orig.S", "mut.S"))
         else:
             S2 = S
-        (d / "mut.S").write_text(S2)
         name = c["code_definition"]
         tl = text.split("\n")
         k = max(i for i, l in enumerate(tl) if l.startswith("import ")) + 1
-        rest = re.sub(rf"(?<![A-Za-z0-9_.']){re.escape(name)}(?![A-Za-z0-9_'])", name + "Mut", "\n".join(tl[k:]))
+        rest, n = re.subn(rf"(?<![A-Za-z0-9_.']){re.escape(name)}(?![A-Za-z0-9_'])", name + "Mut", "\n".join(tl[k:]))
+        if not n:
+            raise ValueError(f"{c['id']}: code_definition {name} is not used after the imports")
         ns = code_namespace_of(c)
-        decl = f'def {ns}.{name}Mut : Program := include_x64_code "{d / "mut.S"}"'
+        decl = f'def {ns}.{name}Mut : Program := include_x64_code "{sdir / "mut.S"}"'
         text = "\n".join(tl[:k] + ["", decl] + [rest])
         lo += 2
         hi += 2
     if c["kind"] == "statement":
         tl = text.split("\n")
-        seg = "\n".join(tl[lo - 1:hi])
-        assert seg.count(c["old"]) == 1, (c["id"], "statement text not unique in the theorem")
+        if c.get("statement_def"):  # the statement is a definition in an inlined module
+            s, _ = find_decl(tl, c["statement_def"], ("def",))
+            e = next((i for i in range(s + 1, len(tl)) if TOP.match(tl[i])), len(tl))
+            if e > lo - 1 - head:
+                raise ValueError(f"{c['id']}: statement_def {c['statement_def']} is not above the theorem")
+        else:
+            s, e = lo - 1, hi
+        seg = "\n".join(tl[s:e])
+        if seg.count(c["old"]) != 1:
+            raise ValueError(f"{c['id']}: the statement text is not unique")
         seg2 = seg.replace(c["old"], c["new"])
         diff = "".join(difflib.unified_diff(seg.splitlines(True), seg2.splitlines(True), "orig", "mut"))
-        text = "\n".join(tl[:lo - 1] + seg2.split("\n") + tl[hi:])
+        text = "\n".join(tl[:s] + seg2.split("\n") + tl[e:])
+    return text, lo - head, hi, S2, diff
+
+
+def first_message(log, f):
+    """The text of the first error message of the log, up to the next message."""
+    out, on = [], False
+    for l in log.splitlines():
+        if re.match(rf"{re.escape(str(f))}:\d+:\d+: (error|warning|info)", l) or (on and l.startswith(str(f))):
+            if on:
+                break
+            on = ": error" in l
+        if on:
+            out.append(l)
+    return "\n".join(out)
+
+
+def run_case(c, work):
+    d = work / c["id"]
+    d.mkdir(parents=True, exist_ok=True)
+    text, lo, hi, S2, diff = build_mutant(c, d)
+    if S2 is not None:
+        (d / "mut.S").write_text(S2)
     f = d / "mut.lean"
     f.write_text(text)
     (d / "diff").write_text(diff)
@@ -378,12 +476,19 @@ def run_case(c, work):
     killed = "killed=True" in log
     errl = [l for l in log.splitlines() if ": error" in l]
     later = next((l for l in errl[1:] if HEARTBEAT in l or RECDEPTH in l), None)
+    # A first error that names the original program and the mutant program is a mismatch of two
+    # program constants (for example a helper about the original program), not an effect of the mutation.
+    mixed = False
+    if c.get("code_definition"):
+        msg, name = first_message(log, f), c["code_definition"]
+        mixed = (re.search(rf"(?<![A-Za-z0-9_']){re.escape(name)}Mut(?![A-Za-z0-9_'])", msg) is not None
+                 and re.search(rf"(?<![A-Za-z0-9_']){re.escape(name)}(?![A-Za-z0-9_'])", msg) is not None)
     # no absolute work-dir path in the committed result file
     first, later = [x.replace(str(work), "<work>") if x else x for x in (first, later)]
     r = {"id": c["id"], "kind": c["kind"], "module": c["module"], "theorem": c["theorem"],
-         "range": [lo - head, hi], "error_lines": errs, "first_error": first, "rc": rc,
+         "range": [lo, hi], "error_lines": errs, "first_error": first, "rc": rc,
          "killed": killed, "timeout": timed_out, "timeout_reaped_pids": reaped, "later_resource_error": later,
-         "seconds": round(time.time() - t0, 1), "diff": diff}
+         "mixed_programs": mixed, "seconds": round(time.time() - t0, 1), "diff": diff}
     return classify(r)
 
 
@@ -403,12 +508,16 @@ def classify(r):
         k = "timeout_wall"
     elif r["killed"]:
         k = "killed"
+    elif r["rc"] not in (0, 1):  # Lean exits with 1 on an error; another status is a crash
+        k = "abnormal_exit"
     elif r["kind"] == "control":
         k = "control_pass" if r["rc"] == 0 and not errs else "control_fail"
     elif hb:
         k = "timeout_heartbeat"
     elif rd:
         k = "recursion_limit"
+    elif r.get("mixed_programs"):
+        k = "mixed_programs"
     elif errs and WRONG_TARGET.search(first):
         k = "wrong_target"
     elif not errs:
@@ -478,17 +587,11 @@ def main(cases, work, out, *ids):
         print(("PASS" if r["pass"] else "FAIL"), r["class"], r["id"], r["kind"], r["theorem"], r["range"], r["error_lines"][:5],
               (r["first_error"] or "")[-160:], flush=True)
         res.append(r)
-    known = {c["id"] for c in json.load(open(cases))}
-    old = json.load(open(out))["cases"] if pathlib.Path(out).exists() else []
-    keep = [classify(o) for o in old if o["id"] not in {r["id"] for r in res} and o["id"] in known]
-    allr = keep + res
     cls = {}
-    for r in allr:
+    for r in res:
         cls[r["class"]] = cls.get(r["class"], 0) + 1
-    prev = json.load(open(out)).get("prechecks", []) if pathlib.Path(out).exists() else []
-    pc["cases"] = [r["id"] for r in res]
-    json.dump({"cases": allr, "pass": sum(r["pass"] for r in allr), "total": len(allr), "classes": cls,
-               "case_timeout_s": CASE_TIMEOUT, "prechecks": (prev + [pc])[-50:]}, open(out, "w"), indent=1)
+    json.dump({"cases": res, "pass": sum(r["pass"] for r in res), "total": len(res), "classes": cls,
+               "case_timeout_s": CASE_TIMEOUT, "precheck": pc}, open(out, "w"), indent=1)
     print(json.dumps({"pass": sum(r["pass"] for r in res), "run": len(res), "classes": cls}))
     return 0 if all(r["pass"] for r in res) else 1
 
@@ -552,6 +655,9 @@ def selftest():
           # a later unknown identifier after a real first error does not change the class
           ("in_then_uid", dict(error_lines=[5, 6], first_error="x:5:1: error: Type mismatch"), "inside"),
           ("in_unsolved", dict(error_lines=[5], first_error="x:5:1: error: unsolved goals"), "inside"),
+          ("crash_after_error", dict(error_lines=[5], first_error="x:5:1: error: type mismatch", rc=-11), "abnormal_exit"),
+          ("mixed", dict(error_lines=[5], first_error="x:5:1: error: Application type mismatch", mixed_programs=True),
+           "mixed_programs"),
           ("in_expected_type", dict(error_lines=[5], first_error="x:5:1: error: Application type mismatch: expected type"),
            "inside")]
     bad = []
@@ -629,29 +735,21 @@ def selftest_timeout():
 
 
 def check_cases(*paths):
-    """Dry run (no Lean): every case of every given cases file resolves to exactly one theorem line of its module
-    (`find_decl`), and a case with `code_definition` has a whole-word use of it after the imports (else the mutant
-    would not use the mutated program). A case with "statement_def" (list_negative.py) also resolves its def line in
-    "statement_module" or the inlined modules. Each module of "mutant_imports" exists under lean/, is not the case
-    module and not one of its imports, and occurs once. Prints one line per failure and a summary."""
+    """Dry run (no Lean): build the mutant text of each case of each case file, as the run does.
+    Each module of "mutant_imports" must exist under lean/, must not be the case module or one of its imports,
+    and must occur once. Prints one line per failure and a summary."""
     bad, n = [], 0
     for p in paths:
         for c in json.load(open(p)):
             n += 1
             try:
-                src = (LEAN / c["module"]).read_text()
-                lines, lo, hi = cut(src, c["theorem"])
-                if c.get("statement_def"):
-                    mods = c.get("inline", [c["statement_module"]] if c.get("statement_module") else [])
-                    text = "\n".join((LEAN / m).read_text() for m in mods) if mods else "\n".join(lines)
-                    find_decl(text.split("\n"), c["statement_def"], ("def",))
-                elif c["kind"] == "statement" and "\n".join(lines[lo - 1:hi]).count(c["old"]) != 1:
-                    raise ValueError("statement text not unique in the theorem")
+                build_mutant(c, pathlib.Path("/mutant-directory"))
             except (OSError, ValueError, StopIteration, KeyError) as e:
-                bad.append(f"{p}: {c['id']}: {type(e).__name__} {e}")
+                bad.append(f"{p}: {c.get('id')}: {type(e).__name__} {e}")
                 continue
+            src = (LEAN / c["module"]).read_text()
             mi = c.get("mutant_imports", [])
-            own = c["module"][:-len(".lean")].replace("/", ".")
+            own = module_name(c["module"])
             if not isinstance(mi, list) or len(set(mi)) != len(mi):
                 bad.append(f"{p}: {c['id']}: mutant_imports is not a list of distinct module names")
                 mi = []
@@ -660,15 +758,6 @@ def check_cases(*paths):
                     bad.append(f"{p}: {c['id']}: mutant_imports: no module {m}")
                 elif m == own or f"import {m}" in src.split("\n"):
                     bad.append(f"{p}: {c['id']}: mutant_imports: {m} is the case module or one of its imports")
-            if c.get("code_definition"):
-                tl = "\n".join(lines).split("\n")
-                k = max(i for i, l in enumerate(tl) if l.startswith("import ")) + 1
-                name = c["code_definition"]
-                body = "\n".join(tl[k:])
-                for m in c.get("inline", [c["statement_module"]] if c.get("statement_module") else []):
-                    body += "\n" + (LEAN / m).read_text()
-                if not re.search(rf"(?<![A-Za-z0-9_.']){re.escape(name)}(?![A-Za-z0-9_'])", body):
-                    bad.append(f"{p}: {c['id']}: code_definition {name} is not used in {c['module']}")
     for b in bad:
         print("CHECK FAIL", b)
     print(f"check-cases: {n} cases, {len(bad)} failures")

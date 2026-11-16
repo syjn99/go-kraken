@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# Source: fv/kraken/link/check.py of methodical-ssz commit 320929dd, without the parts that are specific to SSZ.
 """Link check: the converted assembly that Lean reads is the code of the pinned ELF.
 
 Usage: link_check.py <build directory>

@@ -1,4 +1,3 @@
--- Source: `fv/kraken/lean/Machine/WitnessHost.lean` of methodical-ssz commit 320929dd.
 import Machine.Labels
 import Machine.Bytes
 

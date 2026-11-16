@@ -1,4 +1,3 @@
--- Source: `fv/kraken/lean/Machine/Step.lean` of methodical-ssz commit 320929dd.
 import Kraken.X64.WP
 import Kraken.X64.Sep
 import Kraken.Tactics

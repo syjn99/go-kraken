@@ -1,4 +1,3 @@
--- Source: `fv/kraken/lean/Machine/Labels.lean` of methodical-ssz commit 320929dd.
 import Machine.Step
 
 /-!

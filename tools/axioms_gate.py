@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# Source: fv/kraken/gen/checks/axioms_gate.py of methodical-ssz commit 320929dd, with the paths of this repository.
 """Axioms gate over each declaration of each Lean library of lean/.
 
 Usage. The command run is a Lean job. The working directory does not matter.

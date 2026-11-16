@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-# Source: fv/kraken/gen/checks/negative.py of methodical-ssz commit 320929dd, with the paths of this repository,
-# a port to macOS, and the case fields inline and statement_def.
 """Negative cases: each mutant must fail inside its designated theorem. Each control must pass.
 
 Usage. A run is a Lean job. The working directory does not matter.

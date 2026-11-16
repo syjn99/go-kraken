@@ -1,5 +1,4 @@
 module
--- Source: `fv/kraken/lean/Machine/Include.lean` of methodical-ssz commit 320929dd, without `data_include`.
 public import Kraken.X64.Syntax
 public meta import Kraken.X64.Parser
 public meta import Lean

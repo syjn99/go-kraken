@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# Source: fv/kraken/link/convert_objdump.py of methodical-ssz commit 320929dd, without the parts that are specific to SSZ.
 """Convert the output of `go tool objdump -gnu` into labeled AT&T assembly for Kraken.
 
 Usage: convert_objdump.py <objdump> <nm> <output directory> [--norm]

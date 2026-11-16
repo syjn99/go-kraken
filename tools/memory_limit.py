@@ -1,7 +1,4 @@
 #!/usr/bin/env python3
-# Source: fv/kraken/gen/tools/memory_limit.py of methodical-ssz commit 320929dd.
-# Changes: without /proc (macOS), session_rss_ps reads the process table from `ps`. The /proc path did not change.
-# killpg also ignores EPERM, which macOS returns for a group that holds only zombies.
 """Memory limit for one command.
 
 The tool runs a command in its own session.

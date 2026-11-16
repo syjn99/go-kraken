@@ -1,5 +1,3 @@
--- Source: `.claude/skills/maintaining-methodical-fv/scripts/decl_dump.lean` of methodical-ssz commit 320929dd.
--- This repository changed only the comments.
 import Lean
 
 /-!

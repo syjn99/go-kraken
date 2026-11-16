@@ -1,4 +1,3 @@
--- Source: `fv/kraken/lean/Machine/Bytes.lean` of methodical-ssz commit 320929dd.
 import Machine.Step
 
 /-! Byte facts for stored values. -/
